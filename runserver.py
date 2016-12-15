@@ -279,6 +279,7 @@ def main():
     # TODO: Rework webhooks entirely so a LFU cache isn't necessary.
     wh_updates_queue = Queue()
     wh_key_cache = LFUCache(maxsize=args.wh_lfu_size)
+    app.set_wh_updates_queue(wh_updates_queue)
 
     # Thread to process webhook updates.
     for i in range(args.wh_threads):
