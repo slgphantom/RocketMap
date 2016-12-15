@@ -63,6 +63,7 @@ class Pogom(Flask):
         self.route("/inject.js", methods=['GET'])(self.render_inject_js)
         self.route("/submit_token", methods=['POST'])(self.submit_token)
         self.route("/get_stats", methods=['GET'])(self.get_account_stats)
+        self.route("/geofency_wh", methods=['POST'])(self.post_geofency_wh)
 
     def get_bookmarklet(self):
         args = get_args()
@@ -121,6 +122,9 @@ class Pogom(Flask):
 
     def set_current_location(self, location):
         self.current_location = location
+
+    def set_wh_updates_queue(self, wh_updates_queue):
+        self.wh_updates_queue = wh_updates_queue
 
     def get_search_control(self):
         return jsonify({'status': not self.search_control.is_set()})
@@ -549,6 +553,33 @@ class Pogom(Flask):
         else:
             d['login'] = 'failed'
         return jsonify(d)
+
+
+    def post_geofency_wh(self):
+        args = get_args()
+        if args.fixed_location:
+            return 'Location changes are turned off', 403
+
+        entry = request.form.get('entry')
+
+        # trigger only when entering locations
+        if entry == '1':
+            lat = request.form.get('latitude', type=float)
+            lon = request.form.get('longitude', type=float)
+            if not (lat and lon):
+                log.warning('Invalid next location: %s,%s', lat, lon)
+                return 'bad parameters', 400
+            else:
+                self.location_queue.put((lat, lon, 0))
+                self.set_current_location((lat, lon, 0))
+                log.info('Changing next location: %s,%s', lat, lon)
+
+                # Geofency specific things
+                name = request.form.get('name')
+                self.wh_updates_queue.put(('location', {'latitude': lat, 'longitude': lon}))
+                log.info('Queued next location "%s" for webhooks', name)
+
+                return self.loc()
 
 
 class CustomJSONEncoder(JSONEncoder):
