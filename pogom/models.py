@@ -25,6 +25,7 @@ from base64 import b64encode
 from cachetools import TTLCache
 from cachetools import cached
 
+from pogom.humanaction import spin_pokestop
 from . import config
 from .utils import get_pokemon_name, get_pokemon_rarity, get_pokemon_types, \
     get_args, cellid, in_radius, date_secs, clock_between, secs_between, \
@@ -1906,6 +1907,9 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
 
     if forts and (config['parse_pokestops'] or config['parse_gyms']):
         if config['parse_pokestops']:
+            if args.spin_pokestops:
+                #try to spin any pokestops in range
+                spin_pokestop(api, (step_location[0], step_location[1]), forts)
             stop_ids = [f['id'] for f in forts if f.get('type') == 1]
             if stop_ids:
                 query = (Pokestop

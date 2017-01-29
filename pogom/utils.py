@@ -260,6 +260,10 @@ def get_args():
                         help=('Disables PokeStops from the map (including ' +
                               'parsing them into local db).'),
                         action='store_true', default=False)
+    parser.add_argument('-sp', '--spin-pokestops',
+                        help=('Spins PokeStops when in range and drops '
+                              'balls from inventory to gain XP.'),
+                        action='store_true', default=False)
     parser.add_argument('-ss', '--spawnpoint-scanning',
                         help=('Use spawnpoint scanning (instead of hex ' +
                               'grid). Scans in a circle based on step_limit ' +
