@@ -424,10 +424,61 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
         t.daemon = True
         t.start()
 
+    beehive_size = 1
+    if args.beehive > 0:
+        # Calculate number of hives required ( -bh 2 => i:1, i:2 )
+        for i in range(1, args.beehive+1):
+            beehive_size += i*6
+        log.info('Using beehive mode, %d hives will be created.', beehive_size)
+
+        # Initialize worker distribution list
+        beehive_workers = [-1 for x in range(beehive_size)]
+        beehive_ignore = []
+        workers_forced = 0
+        workers_required = 0
+
+        # Parse beehive configuration
+        for i in range(0, len(args.beehive_workers)):
+            bhw = args.beehive_workers[i].split('-')
+            bhw_index = int(bhw[0])
+            bhw_workers = int(bhw[1]) + args.workers_per_hive
+            if (bhw_index >= 0) and (bhw_index <= beehive_size):
+                workers_forced += 1
+                if bhw_workers <= 0:
+                    beehive_workers[bhw_index] = 0
+                    beehive_ignore.append(bhw_index)
+                else:
+                    beehive_workers[bhw_index] = bhw_workers
+                    workers_required += bhw_workers
+
+        if args.workers < workers_required:
+            log.critical('Not enough workers to fill the beehive. ' +
+                         'Increase -w --workers or decrease -bh --beehive.')
+            sys.exit()
+    for i in range(0, beehive_size):
+        if i in beehive_ignore:
+            continue
+        search_items_queue = Queue()
+        # Create the appropriate type of scheduler to handle the search queue.
+        scheduler = schedulers.SchedulerFactory.get_scheduler(
+                                                        args.scheduler,
+                                                        [search_items_queue],
+                                                        threadStatus, args)
+
+        scheduler_array.append(scheduler)
+        search_items_queue_array.append(search_items_queue)
+
     # Create specified number of search_worker_thread.
     log.info('Starting search worker threads...')
+    beehive_index = 0
     for i in range(0, args.workers):
         log.debug('Starting search worker thread %d...', i)
+
+        # Select search item queue for each worker.
+        search_items_bhw_index = i % beehive_size
+        search_items_queue = search_items_queue_array[search_items_bhw_index]
+
+        if beehive_workers
 
         if i == 0 or (args.beehive and i % args.workers_per_hive == 0):
             search_items_queue = Queue()
