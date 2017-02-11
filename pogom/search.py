@@ -433,7 +433,6 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
         # Initialize worker distribution list
         beehive_workers = [-1 for x in range(beehive_size)]
         beehive_ignore = []
-        workers_forced = 0
         workers_required = 0
 
         # Parse beehive configuration
@@ -442,7 +441,6 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
             bhw_index = int(bhw[0])
             bhw_workers = int(bhw[1]) + args.workers_per_hive
             if (bhw_index >= 0) and (bhw_index <= beehive_size):
-                workers_forced += 1
                 if bhw_workers <= 0:
                     beehive_workers[bhw_index] = 0
                     beehive_ignore.append(bhw_index)
