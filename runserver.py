@@ -172,28 +172,31 @@ def main():
             # Initialize worker distribution list
             beehive_workers = [0 for x in range(beehive_size)]
             skip_indexes = []
-            beehive_ignored = 0
+            hives_ignored = 0
             workers_forced = 0
             log.debug('--beehive-workers: %s', args.beehive_workers)
 
             # Parse beehive configuration
             for i in range(0, len(args.beehive_workers)):
-                bhw = args.beehive_workers[i].split('-')
+                bhw = args.beehive_workers[i].split(':')
                 bhw_index = int(bhw[0])
                 bhw_workers = int(bhw[1])
-                if (bhw_index >= 0) and (bhw_index <= beehive_size):
+                if (bhw_index >= 0) and (bhw_index < beehive_size):
                     if bhw_index in skip_indexes:
-                        log.error('Duplicate beehive index found in -bhw ' +
+                        log.error('Duplicate hive index found in -bhw ' +
                                   '--beehive-workers: %d', bhw_index)
                         continue
                     if bhw_workers <= 0:
                         skip_indexes.append(bhw_index)
                         beehive_workers[bhw_index] = 0
-                        beehive_ignored += 1
+                        hives_ignored += 1
                     else:
                         skip_indexes.append(bhw_index)
                         beehive_workers[bhw_index] = bhw_workers
                         workers_forced += bhw_workers
+                else:
+                    log.error('Invalid hive index found in -bhw ' +
+                              '--beehive-workers: %d', bhw_index)
             # Check if we have enough workers for beehive setup.
             workers_required = workers_forced
             if args.workers_per_hive > 0:
@@ -201,7 +204,7 @@ def main():
                 workers_required += count * args.workers_per_hive
 
             log.info('Beehive size: %d (%d hives ignored). Workers forced: ' +
-                     '%d. Workers required: %d', beehive_size, beehive_ignored,
+                     '%d. Workers required: %d', beehive_size, hives_ignored,
                      workers_forced, workers_required)
             if args.workers < workers_required:
                 log.critical('Not enough workers to fill the beehive. ' +
@@ -211,15 +214,15 @@ def main():
 
             # Assign remaining workers to available hives.
             remaining_workers = args.workers - workers_forced
-            curr_index = 0
+            populate_index = 0
             while remaining_workers > 0:
-                beehive_index = curr_index % beehive_size
+                beehive_index = populate_index % beehive_size
                 if beehive_index in skip_indexes:
-                    curr_index += 1
+                    populate_index += 1
                     continue
 
                 beehive_workers[beehive_index] += 1
-                curr_index += 1
+                populate_index += 1
                 remaining_workers -= 1
             log.debug('Beehive worker distribution: %s', beehive_workers)
 

@@ -99,7 +99,7 @@ def get_args():
                         help=('Only referenced when using --beehive. Lets ' +
                               'you disable hives individually or force a ' +
                               'specific number of workers. Format is: ' +
-                              '<hive_index>-<worker_count>, e.g. "3-0, 4-5"'),
+                              '<hive index>:<worker count>, e.g. "3:0, 4:5"'),
                         action='append', default=[])
     parser.add_argument('-l', '--location', type=parse_unicode,
                         help='Location, can be an address or coordinates.')
