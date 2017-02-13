@@ -424,36 +424,62 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
         t.start()
 
     beehive_size = 1
+    beehive_workers = [args.workers]
+    beehive_ignored = []
+    beehive_forced = []
     if args.beehive > 0:
         # Calculate number of hives required ( -bh 2 => i:1, i:2 )
         for i in range(1, args.beehive+1):
             beehive_size += i*6
-        log.info('Using beehive mode, %d hives will be created.', beehive_size)
 
         # Initialize worker distribution list
-        beehive_workers = [-1 for x in range(beehive_size)]
-        beehive_ignore = []
-        workers_required = 0
+        beehive_workers = [0 for x in range(beehive_size)]
+        workers_forced = 0
 
         # Parse beehive configuration
         for i in range(0, len(args.beehive_workers)):
             bhw = args.beehive_workers[i].split('-')
             bhw_index = int(bhw[0])
-            bhw_workers = int(bhw[1]) + args.workers_per_hive
+            bhw_workers = int(bhw[1])
             if (bhw_index >= 0) and (bhw_index <= beehive_size):
                 if bhw_workers <= 0:
+                    beehive_ignored.append(bhw_index)
                     beehive_workers[bhw_index] = 0
-                    beehive_ignore.append(bhw_index)
                 else:
+                    beehive_forced.append(bhw_index)
                     beehive_workers[bhw_index] = bhw_workers
-                    workers_required += bhw_workers
+                    workers_forced += bhw_workers
+
+        log.info('Beehive mode enabled. Size: %d - Ignored: %d. Forced: %d',
+                 beehive_size, len(beehive_ignored), len(beehive_forced))
+        workers_required = workers_forced
+        if args.workers_per_hive > 0:
+            count = beehive_size - len(beehive_ignored) - len(beehive_forced)
+            workers_required += count * args.workers_per_hive
 
         if args.workers < workers_required:
             log.critical('Not enough workers to fill the beehive. ' +
                          'Increase -w --workers or decrease -bh --beehive.')
             sys.exit()
-    for i in range(0, beehive_size):
-        if i in beehive_ignore:
+
+        remaining_workers = args.workers - workers_forced
+        skip_indexes = beehive_ignored + beehive_forced
+        curr_index = 0
+        while remaining_workers > 0:
+            beehive_index = curr_index % beehive_size
+            if beehive_index in skip_indexes:
+                curr_index += 1
+                continue
+
+            beehive_workers[beehive_index] += 1
+            curr_index += 1
+            remaining_workers -= 1
+
+    # Create specified number of search_worker_thread.
+    log.info('Starting search worker threads...')
+    worker_count = 0
+    for beehive_index in range(0, beehive_size):
+        if beehive_index in beehive_ignored:
             continue
         search_items_queue = Queue()
         # Create the appropriate type of scheduler to handle the search queue.
@@ -465,54 +491,37 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
         scheduler_array.append(scheduler)
         search_items_queue_array.append(search_items_queue)
 
-    # Create specified number of search_worker_thread.
-    log.info('Starting search worker threads...')
-    beehive_index = 0
-    for i in range(0, args.workers):
-        log.debug('Starting search worker thread %d...', i)
+        while beehive_workers[beehive_index] > 0:
+            log.debug('Starting search worker thread %d...', worker_count)
 
-        # Select search item queue for each worker.
-        search_items_bhw_index = i % beehive_size
-        search_items_queue = search_items_queue_array[search_items_bhw_index]
+            # Set proxy for each worker, using round robin.
+            proxy_display = 'No'
+            proxy_url = False    # Will be assigned inside a search thread.
 
-        if beehive_workers
+            workerId = 'Worker {:03}'.format(worker_count)
+            threadStatus[workerId] = {
+                'type': 'Worker',
+                'message': 'Creating thread...',
+                'success': 0,
+                'fail': 0,
+                'noitems': 0,
+                'skip': 0,
+                'captcha': 0,
+                'username': '',
+                'proxy_display': proxy_display,
+                'proxy_url': proxy_url,
+            }
 
-        if i == 0 or (args.beehive and i % args.workers_per_hive == 0):
-            search_items_queue = Queue()
-            # Create the appropriate type of scheduler to handle the search
-            # queue.
-            scheduler = schedulers.SchedulerFactory.get_scheduler(
-                args.scheduler, [search_items_queue], threadStatus, args)
-
-            scheduler_array.append(scheduler)
-            search_items_queue_array.append(search_items_queue)
-
-        # Set proxy for each worker, using round robin.
-        proxy_display = 'No'
-        proxy_url = False    # Will be assigned inside a search thread.
-
-        workerId = 'Worker {:03}'.format(i)
-        threadStatus[workerId] = {
-            'type': 'Worker',
-            'message': 'Creating thread...',
-            'success': 0,
-            'fail': 0,
-            'noitems': 0,
-            'skip': 0,
-            'captcha': 0,
-            'username': '',
-            'proxy_display': proxy_display,
-            'proxy_url': proxy_url,
-        }
-
-        t = Thread(target=search_worker_thread,
-                   name='search-worker-{}'.format(i),
-                   args=(args, account_queue, account_failures,
-                         account_captchas, search_items_queue, pause_bit,
-                         threadStatus[workerId], db_updates_queue,
-                         wh_queue, scheduler, key_scheduler))
-        t.daemon = True
-        t.start()
+            t = Thread(target=search_worker_thread,
+                       name='search-worker-{}'.format(worker_count),
+                       args=(args, account_queue, account_failures,
+                             account_captchas, search_items_queue, pause_bit,
+                             threadStatus[workerId], db_updates_queue,
+                             wh_queue, scheduler, key_scheduler))
+            t.daemon = True
+            t.start()
+            worker_count += 1
+            beehive_workers[beehive_index] -= 1
 
     # A place to track the current location.
     current_location = False
