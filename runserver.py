@@ -174,7 +174,7 @@ def main():
             skip_indexes = []
             beehive_ignored = 0
             workers_forced = 0
-            log.debug('Beehive Workers: %s', args.beehive_workers)
+            log.debug('--beehive-workers: %s', args.beehive_workers)
 
             # Parse beehive configuration
             for i in range(0, len(args.beehive_workers)):
@@ -182,6 +182,10 @@ def main():
                 bhw_index = int(bhw[0])
                 bhw_workers = int(bhw[1])
                 if (bhw_index >= 0) and (bhw_index <= beehive_size):
+                    if bhw_index in skip_indexes:
+                        log.error('Duplicate beehive index found in -bhw ' +
+                                  '--beehive-workers: %d', bhw_index)
+                        continue
                     if bhw_workers <= 0:
                         skip_indexes.append(bhw_index)
                         beehive_workers[bhw_index] = 0
