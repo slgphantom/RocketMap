@@ -425,8 +425,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
 
     beehive_size = 1
     beehive_workers = [args.workers]
-    beehive_ignored = []
-    beehive_forced = []
+
     if args.beehive > 0:
         # Calculate number of hives required ( -bh 2 => i:1, i:2 )
         for i in range(1, args.beehive+1):
@@ -434,8 +433,11 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
 
         # Initialize worker distribution list
         beehive_workers = [0 for x in range(beehive_size)]
+        skip_indexes = []
+        beehive_ignored = 0
         workers_forced = 0
-
+        log.debug('-bhw size: %d - %s', len(args.beehive_workers),
+                  args.beehive_workers)
         # Parse beehive configuration
         for i in range(0, len(args.beehive_workers)):
             bhw = args.beehive_workers[i].split('-')
@@ -443,27 +445,28 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
             bhw_workers = int(bhw[1])
             if (bhw_index >= 0) and (bhw_index <= beehive_size):
                 if bhw_workers <= 0:
-                    beehive_ignored.append(bhw_index)
+                    skip_indexes.append(bhw_index)
                     beehive_workers[bhw_index] = 0
+                    beehive_ignored += 1
                 else:
-                    beehive_forced.append(bhw_index)
+                    skip_indexes.append(bhw_index)
                     beehive_workers[bhw_index] = bhw_workers
                     workers_forced += bhw_workers
-
-        log.info('Beehive mode enabled. Size: %d - Ignored: %d. Forced: %d',
-                 beehive_size, len(beehive_ignored), len(beehive_forced))
+        # Check if we have enough workers for beehive setup.
         workers_required = workers_forced
         if args.workers_per_hive > 0:
-            count = beehive_size - len(beehive_ignored) - len(beehive_forced)
+            count = beehive_size - len(skip_indexes)
             workers_required += count * args.workers_per_hive
 
+        log.info('Beehive size: %d (%d hives ignored). Workers forced: %d. ' +
+                 'Workers required: %d', beehive_size, beehive_ignored,
+                 workers_forced, workers_required)
         if args.workers < workers_required:
             log.critical('Not enough workers to fill the beehive. ' +
                          'Increase -w --workers or decrease -bh --beehive.')
             sys.exit()
-
+        # Assign remaining workers to available hives.
         remaining_workers = args.workers - workers_forced
-        skip_indexes = beehive_ignored + beehive_forced
         curr_index = 0
         while remaining_workers > 0:
             beehive_index = curr_index % beehive_size
@@ -474,12 +477,13 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
             beehive_workers[beehive_index] += 1
             curr_index += 1
             remaining_workers -= 1
+        log.debug('Beehive worker distribution: %s', beehive_workers)
 
     # Create specified number of search_worker_thread.
     log.info('Starting search worker threads...')
     worker_count = 0
     for beehive_index in range(0, beehive_size):
-        if beehive_index in beehive_ignored:
+        if beehive_workers[beehive_index] < 1:
             continue
         search_items_queue = Queue()
         # Create the appropriate type of scheduler to handle the search queue.
@@ -491,7 +495,8 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
         scheduler_array.append(scheduler)
         search_items_queue_array.append(search_items_queue)
 
-        while beehive_workers[beehive_index] > 0:
+        hive_workers = beehive_workers[beehive_index]
+        while hive_workers > 0:
             log.debug('Starting search worker thread %d...', worker_count)
 
             # Set proxy for each worker, using round robin.
@@ -521,7 +526,7 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
             t.daemon = True
             t.start()
             worker_count += 1
-            beehive_workers[beehive_index] -= 1
+            hive_workers -= 1
 
     # A place to track the current location.
     current_location = False
@@ -559,11 +564,17 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
 
             locations = generate_hive_locations(
                 current_location, step_distance,
-                args.step_limit, len(scheduler_array))
+                args.step_limit, beehive_size)
 
-            for i in range(0, len(scheduler_array)):
-                scheduler_array[i].location_changed(locations[i],
-                                                    db_updates_queue)
+            scheduler_index = 0
+            for i in range(0, beehive_size):
+                log.debug('Setting location for hive %d to: %s', i,
+                          locations[i])
+                if beehive_workers[i] > 0:
+                    scheduler_array[scheduler_index].location_changed(
+                                                        locations[i],
+                                                        db_updates_queue)
+                    scheduler_index += 1
 
         # If there are no search_items_queue either the loop has finished or
         # it's been cleared above.  Either way, time to fill it back up.
