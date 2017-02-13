@@ -340,8 +340,8 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
 
 
 # The main search loop that keeps an eye on the over all process.
-def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
-                           db_updates_queue, wh_queue):
+def search_overseer_thread(args, beehive_workers, new_location_queue,
+                           pause_bit, heartb, db_updates_queue, wh_queue):
 
     log.info('Search overseer starting...')
 
@@ -423,65 +423,11 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
         t.daemon = True
         t.start()
 
-    beehive_size = 1
-    beehive_workers = [args.workers]
-
-    if args.beehive > 0:
-        # Calculate number of hives required ( -bh 2 => i:1, i:2 )
-        for i in range(1, args.beehive+1):
-            beehive_size += i*6
-
-        # Initialize worker distribution list
-        beehive_workers = [0 for x in range(beehive_size)]
-        skip_indexes = []
-        beehive_ignored = 0
-        workers_forced = 0
-        log.debug('-bhw size: %d - %s', len(args.beehive_workers),
-                  args.beehive_workers)
-        # Parse beehive configuration
-        for i in range(0, len(args.beehive_workers)):
-            bhw = args.beehive_workers[i].split('-')
-            bhw_index = int(bhw[0])
-            bhw_workers = int(bhw[1])
-            if (bhw_index >= 0) and (bhw_index <= beehive_size):
-                if bhw_workers <= 0:
-                    skip_indexes.append(bhw_index)
-                    beehive_workers[bhw_index] = 0
-                    beehive_ignored += 1
-                else:
-                    skip_indexes.append(bhw_index)
-                    beehive_workers[bhw_index] = bhw_workers
-                    workers_forced += bhw_workers
-        # Check if we have enough workers for beehive setup.
-        workers_required = workers_forced
-        if args.workers_per_hive > 0:
-            count = beehive_size - len(skip_indexes)
-            workers_required += count * args.workers_per_hive
-
-        log.info('Beehive size: %d (%d hives ignored). Workers forced: %d. ' +
-                 'Workers required: %d', beehive_size, beehive_ignored,
-                 workers_forced, workers_required)
-        if args.workers < workers_required:
-            log.critical('Not enough workers to fill the beehive. ' +
-                         'Increase -w --workers or decrease -bh --beehive.')
-            sys.exit()
-        # Assign remaining workers to available hives.
-        remaining_workers = args.workers - workers_forced
-        curr_index = 0
-        while remaining_workers > 0:
-            beehive_index = curr_index % beehive_size
-            if beehive_index in skip_indexes:
-                curr_index += 1
-                continue
-
-            beehive_workers[beehive_index] += 1
-            curr_index += 1
-            remaining_workers -= 1
-        log.debug('Beehive worker distribution: %s', beehive_workers)
-
     # Create specified number of search_worker_thread.
     log.info('Starting search worker threads...')
     worker_count = 0
+    beehive_size = len(beehive_workers)
+
     for beehive_index in range(0, beehive_size):
         if beehive_workers[beehive_index] < 1:
             continue
