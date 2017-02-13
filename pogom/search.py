@@ -514,8 +514,6 @@ def search_overseer_thread(args, beehive_workers, new_location_queue,
 
             scheduler_index = 0
             for i in range(0, beehive_size):
-                log.debug('Setting location for hive %d to: %s', i,
-                          locations[i])
                 if beehive_workers[i] > 0:
                     scheduler_array[scheduler_index].location_changed(
                                                         locations[i],
