@@ -174,7 +174,7 @@ def main():
             skip_indexes = []
             hives_ignored = 0
             workers_forced = 0
-            log.debug('--beehive-workers: %s', args.beehive_workers)
+            log.debug('-bhw --beehive-workers: %s', args.beehive_workers)
 
             # Parse beehive configuration
             for i in range(0, len(args.beehive_workers)):
@@ -183,8 +183,8 @@ def main():
                 bhw_workers = int(bhw[1])
                 if (bhw_index >= 0) and (bhw_index < beehive_size):
                     if bhw_index in skip_indexes:
-                        log.error('Duplicate hive index found in -bhw ' +
-                                  '--beehive-workers: %d', bhw_index)
+                        log.warning('Duplicate hive index found in -bhw ' +
+                                    '--beehive-workers: %d', bhw_index)
                         continue
                     if bhw_workers <= 0:
                         skip_indexes.append(bhw_index)
@@ -195,8 +195,8 @@ def main():
                         beehive_workers[bhw_index] = bhw_workers
                         workers_forced += bhw_workers
                 else:
-                    log.error('Invalid hive index found in -bhw ' +
-                              '--beehive-workers: %d', bhw_index)
+                    log.warning('Invalid hive index found in -bhw ' +
+                                '--beehive-workers: %d', bhw_index)
             # Check if we have enough workers for beehive setup.
             workers_required = workers_forced
             if args.workers_per_hive > 0:

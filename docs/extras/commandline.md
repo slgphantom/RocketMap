@@ -4,7 +4,7 @@
                         [-h] [-cf CONFIG] [-a AUTH_SERVICE] [-u USERNAME]
                         [-p PASSWORD] [-w WORKERS] [-asi ACCOUNT_SEARCH_INTERVAL]
                         [-ari ACCOUNT_REST_INTERVAL] [-ac ACCOUNTCSV]
-                        [-bh BEEHIVE] [-wph WORKERS_PER_HIVE]
+                        [-bh LEAPS] [-wph WORKERS_PER_HIVE]
                         [-bhw BEEHIVE_WORKERS] [-l LOCATION] [-nj]
                         [-st STEP_LIMIT] [-sd SCAN_DELAY]
                         [--spawn-delay SPAWN_DELAY] [-enc] [-cs] [-ck CAPTCHA_KEY]
