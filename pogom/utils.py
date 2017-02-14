@@ -91,15 +91,16 @@ def get_args():
                               'Default value is 0 (disabled).'),
                         type=int, default=0)
     parser.add_argument('-wph', '--workers-per-hive',
-                        help=('Only referenced when using --beehive. Sets ' +
-                              'number of workers per hive. Default value ' +
-                              'is 1.'),
-                        type=int, default=1)
+                        help=('Only referenced when using --beehive. Forces ' +
+                              'the number of workers per hive.' +
+                              'Default value is 0.'),
+                        type=int, default=0)
     parser.add_argument('-bhw', '--beehive-workers',
                         help=('Only referenced when using --beehive. Lets ' +
                               'you disable hives individually or force a ' +
-                              'specific number of workers. Format is: ' +
-                              '<hive index>:<worker count>, e.g. "3:0, 4:5"'),
+                              'specific number of workers. Format is a list ' +
+                              'of pairs: <hive index>:<worker count> e.g. ' +
+                              '[1:0, 3:0, 4:5]'),
                         action='append', default=[])
     parser.add_argument('-l', '--location', type=parse_unicode,
                         help='Location, can be an address or coordinates.')
