@@ -3,8 +3,9 @@
     usage: runserver.py
                         [-h] [-cf CONFIG] [-a AUTH_SERVICE] [-u USERNAME]
                         [-p PASSWORD] [-w WORKERS] [-asi ACCOUNT_SEARCH_INTERVAL]
-                        [-ari ACCOUNT_REST_INTERVAL] [-ac ACCOUNTCSV] [-bh]
-                        [-wph WORKERS_PER_HIVE] [-l LOCATION] [-nj]
+                        [-ari ACCOUNT_REST_INTERVAL] [-ac ACCOUNTCSV]
+                        [-bh LEAPS] [-wph WORKERS_PER_HIVE]
+                        [-bhw BEEHIVE_WORKERS] [-l LOCATION] [-nj]
                         [-st STEP_LIMIT] [-sd SCAN_DELAY]
                         [--spawn-delay SPAWN_DELAY] [-enc] [-cs] [-ck CAPTCHA_KEY]
                         [-cds CAPTCHA_DSK] [-mcd MANUAL-CAPTCHA-DOMAIN]
@@ -75,14 +76,20 @@
                             Load accounts from CSV file containing
                             "auth_service,username,passwd" lines [env var:
                             POGOMAP_ACCOUNTCSV]
-      -bh, --beehive        Use beehive configuration for multiple accounts, one
-                            account per hex. Make sure to keep -st under 5, and -w
-                            under the total amount of accounts available. [env
-                            var: POGOMAP_BEEHIVE]
+      -bh LEAPS, --beehive LEAPS
+                            Number of leaps desired for beehive setup.
+                            Example: -bh 1 = 7 hexes | -bh 2 = 19 hexes.
+                            Default value is 0 (disabled).
+                            [env var: POGOMAP_BEEHIVE]
       -wph WORKERS_PER_HIVE, --workers-per-hive WORKERS_PER_HIVE
-                            Only referenced when using --beehive. Sets number of
-                            workers per hive. Default value is 1. [env var:
-                            POGOMAP_WORKERS_PER_HIVE]
+                            Only referenced when using --beehive. Forces the
+                            number of workers per hive. Default value is 0.
+                            [env var: POGOMAP_WORKERS_PER_HIVE]
+      -bhw BEEHIVE_WORKERS, --beehive-workers BEEHIVE_WORKERS
+                            Only referenced when using --beehive. Lets you
+                            disable hives individually or force a specific
+                            number of workers. Format is a list of pairs:
+                            <hive index>:<worker count>, e.g. [1:0, 3:0, 4:5]
       -l LOCATION, --location LOCATION
                             Location, can be an address or coordinates [env var:
                             POGOMAP_LOCATION]
