@@ -39,6 +39,11 @@ cache = TTLCache(maxsize=100, ttl=60 * 5)
 
 db_schema_version = 13
 
+CATCH_STATUS_SUCCESS = 1
+CATCH_STATUS_FAILED = 2
+CATCH_STATUS_VANISHED = 3
+CATCH_STATUS_MISSED = 4
+
 
 class MyRetryDB(RetryOperationalError, PooledMySQLDatabase):
     pass
@@ -1855,6 +1860,87 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                 encounter_result = req.download_settings()
                 encounter_result = req.get_buddy_walked()
                 encounter_result = req.call()
+                
+                # Catch' em all (gen1)
+                if (41 == p['pokemon_data']['pokemon_id'] or 129 == p['pokemon_data']['pokemon_id']or 16 == p['pokemon_data']['pokemon_id'] or 19 == p['pokemon_data']['pokemon_id']):
+                    time.sleep(5)
+                    log.info("Starting Catch")
+                    req = api.create_request()
+                    catch_result = req.catch_pokemon(
+                        encounter_id=p['encounter_id'],
+                        pokeball=1,
+                        normalized_reticle_size=1.950,
+                        spawn_point_id=p['spawn_point_id'],
+                        hit_pokemon=1,
+                        spin_modifier=1.0,
+                        normalized_hit_position=1.0)
+                    catch_result = req.check_challenge()
+                    catch_result = req.get_hatched_eggs()
+                    catch_result = req.get_inventory()
+                    catch_result = req.check_awarded_badges()
+                    catch_result = req.download_settings()
+                    catch_result = req.get_buddy_walked()
+                    catch_result = req.call()
+                    catch_pokemon_status = catch_result['responses']['CATCH_POKEMON']['status']
+                    if catch_pokemon_status == CATCH_STATUS_MISSED:
+                        log.error("Catch - Missed pokemon!!!")
+                    if catch_pokemon_status == CATCH_STATUS_FAILED:
+                        log.error("Catch - Generic failure!!!")
+                    if catch_pokemon_status == CATCH_STATUS_VANISHED: 
+                        log.error("Catch - Pokemon vanished!!!")                    
+                    if catch_pokemon_status == CATCH_STATUS_SUCCESS:
+                        log.error("Catch - Success")
+                        try:
+
+                            captured_pokemon_id = catch_result['responses']['CATCH_POKEMON']['captured_pokemon_id']
+                            inventory_items = catch_result['responses']['GET_INVENTORY']['inventory_delta']['inventory_items']
+                            log.info(inventory_items)
+                            for value in inventory_items:
+                                #log.error('Trying')
+                                #log.info(captured_pokemon_id)
+                                #log.info(value)
+                                inventory_item_data = value['inventory_item_data']
+                                #log.info(inventory_item_data)
+                                if str(captured_pokemon_id) in str(value):
+                                    #log.error(value)
+                                    new_pokemon = value['inventory_item_data']['pokemon_data']['pokemon_id']
+                                    new_move_1 = value['inventory_item_data']['pokemon_data']['move_1']
+                                    new_move_2 = value['inventory_item_data']['pokemon_data']['move_2']
+                                    log.error(new_pokemon)
+                                    log.error(new_move_1)
+                                    log.error(new_move_2)
+                                    encounter_result['responses']['ENCOUNTER']['wild_pokemon']['pokemon_data']['move_1'] = new_move_1
+                                    encounter_result['responses']['ENCOUNTER']['wild_pokemon']['pokemon_data']['move_2'] = new_move_2
+                                    p['pokemon_data']['pokemon_id'] = new_pokemon
+                                    #log.error(p['pokemon_data']['pokemon_id'])
+                        except KeyError as e:
+                            log.error(e)
+                        log.info("-------------")
+                        #log.info(catch_result)
+                        log.info(catch_pokemon_status)
+                        log.info("-------------")
+                        time.sleep(10)
+                        #Transfer Pokemon to Oak
+                        try:
+                            log.info("Releasing Pokemon")
+                            req = api.create_request()
+                            release_result = req.release_pokemon(pokemon_id=catch_result['responses']['CATCH_POKEMON']['captured_pokemon_id'])
+                            release_result = req.check_challenge()
+                            release_result = req.get_hatched_eggs()
+                            release_result = req.get_inventory()
+                            release_result = req.check_awarded_badges()
+                            release_result = req.download_settings()
+                            release_result = req.get_buddy_walked()
+                            release_result = req.call()
+                            log.info("---------------")
+                            log.info(release_result)
+                            log.info("---------------")
+                            candy_awarded = release_result['responses']['RELEASE_POKEMON']['candy_awarded']
+                        except KeyError as e:
+                            log.error(e)
+                        
+            printPokemon(p['pokemon_data']['pokemon_id'],
+                         p['latitude'], p['longitude'], disappear_time) 
 
             pokemon[p['encounter_id']] = {
                 'encounter_id': b64encode(str(p['encounter_id'])),
