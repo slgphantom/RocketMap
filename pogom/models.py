@@ -1867,8 +1867,8 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                 encounter_result = req.call()
                 
                 # Catch' em all (gen1)
-                if args.ditto:
-                    if (41 == p['pokemon_data']['pokemon_id'] or 129 == p['pokemon_data']['pokemon_id']or 16 == p['pokemon_data']['pokemon_id'] or 19 == p['pokemon_data']['pokemon_id']):
+                if args.xp_machine:
+                    if p['pokemon_data']['pokemon_id'] is True:
                         time.sleep(5)
                         log.info("Starting Catch")
                         req = api.create_request()
