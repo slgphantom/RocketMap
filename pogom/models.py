@@ -1859,6 +1859,7 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                 encounter_result = req.download_settings()
                 encounter_result = req.get_buddy_walked()
                 encounter_result = req.call()
+                log.info(encounter_result)
 
             pokemon[p['encounter_id']] = {
                 'encounter_id': b64encode(str(p['encounter_id'])),
@@ -1893,6 +1894,7 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                     'height': pokemon_info['height_m'],
                     'weight': pokemon_info['weight_kg'],
                     'gender': pokemon_info['pokemon_display']['gender'],
+                    'cp': pokemon_info['cp'],
                     'form': pokemon_info['pokemon_display'].get(
                         'form', 0)
                 })
