@@ -261,8 +261,8 @@ def get_args():
                         help=('Disables PokeStops from the map (including ' +
                               'parsing them into local db).'),
                         action='store_true', default=False)
-    parser.add_argument('-oh', '--ditto',
-                        help=('Check for ditto (for 4 gen1 pkm).'),
+    parser.add_argument('-xp', '--xp-machine',
+                        help=('Catch everything encountered.'),
                         action='store_true', default=False)
     parser.add_argument('-ss', '--spawnpoint-scanning',
                         help=('Use spawnpoint scanning (instead of hex ' +
