@@ -1893,6 +1893,8 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                     'height': pokemon_info['height_m'],
                     'weight': pokemon_info['weight_kg'],
                     'gender': pokemon_info['pokemon_display']['gender'],
+                    'form': pokemon_info['pokemon_display'].get(
+                        'form', 0)
                 })
 
             if args.webhooks:
