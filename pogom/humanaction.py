@@ -15,11 +15,11 @@ def spin_pokestop(api, position, pokestops):
     SPIN_REQUEST_RESULT_IN_COOLDOWN_PERIOD = 3
     SPIN_REQUEST_RESULT_INVENTORY_FULL = 4
     for pokestop in pokestops_in_range:
-        log.info("Trying to Drop 5 Potion")
+        log.info("Trying to Drop 10 Potion")
         time.sleep(10)
         req = api.create_request()
         response_dict = req.recycle_inventory_item(item_id=101,
-                        count=5
+                        count=10
                         )
         response_dict = req.call()
         #log.info(response_dict)
@@ -27,15 +27,15 @@ def spin_pokestop(api, position, pokestops):
             drop_details = response_dict['responses']['RECYCLE_INVENTORY_ITEM']
             drop_result = drop_details.get('result', -1)
             if (drop_result == 1):
-                log.info("Dropped 5 Potion")
+                log.info("Dropped 10 Potion")
             else:
-                log.info("Couldn't Drop 5 Potion")         
+                log.info("Couldn't Drop 10 Potion")         
                 
-        log.info("Trying to Drop 5 Revive")
+        log.info("Trying to Drop 10 Revive")
         time.sleep(10)
         req = api.create_request()
         response_dict = req.recycle_inventory_item(item_id=201,
-                        count=5
+                        count=10
                         )
         response_dict = req.call()
         #log.info(response_dict)
@@ -43,9 +43,9 @@ def spin_pokestop(api, position, pokestops):
             drop_details = response_dict['responses']['RECYCLE_INVENTORY_ITEM']
             drop_result = drop_details.get('result', -1)
             if (drop_result == 1):
-                log.info("Dropped 5 Revive")
+                log.info("Dropped 10 Revive")
             else:
-                log.info("Couldn't Drop 5 Revive")            
+                log.info("Couldn't Drop 10 Revive")            
         if pokestop.get('type') != 1:
             log.info("That was a gym")
             continue
@@ -66,7 +66,7 @@ def spin_pokestop(api, position, pokestops):
                 if (spin_result == SPIN_REQUEST_RESULT_SUCCESS) or (spin_result == SPIN_REQUEST_RESULT_INVENTORY_FULL):
                     experience_awarded = spin_details.get('experience_awarded', 0)
                     if experience_awarded:
-                        log.info("Spun pokestop got response data!")
+                        log.info("Spin pokestop got response data!")
                     else:
                         log.info('Found nothing in pokestop') 
                 elif spin_result == SPIN_REQUEST_RESULT_OUT_OF_RANGE:
