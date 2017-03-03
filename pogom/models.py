@@ -1980,10 +1980,7 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                     'move_2': pokemon_info['move_2'],
                     'height': pokemon_info['height_m'],
                     'weight': pokemon_info['weight_kg'],
-                    'gender': pokemon_info['pokemon_display']['gender'],
-                    'cp': pokemon_info['cp'],
-                    'form': pokemon_info['pokemon_display'].get(
-                        'form', 0)
+                    'gender': pokemon_info['pokemon_display']['gender']
                 })
 
             if args.webhooks:
@@ -1994,10 +1991,13 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                         disappear_time.timetuple()),
                     'last_modified_time': p['last_modified_timestamp_ms'],
                     'time_until_hidden_ms': p['time_till_hidden_ms'],
-                    'verified': SpawnPoint.tth_found(sp),
+                    'verified': str(SpawnPoint.tth_found(sp)).lower() if type(SpawnPoint.tth_found(sp)) is bool else SpawnPoint.tth_found(sp),
                     'seconds_until_despawn': seconds_until_despawn,
                     'spawn_start': start_end[0],
-                    'spawn_end': start_end[1]
+                    'spawn_end': start_end[1],
+                    'cp': pokemon_info['cp'],
+                    'form': pokemon_info['pokemon_display'].get(
+                        'form', 0)
                 })
                 wh_update_queue.put(('pokemon', wh_poke))
 
