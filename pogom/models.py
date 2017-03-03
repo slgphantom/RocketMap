@@ -1865,7 +1865,6 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                 encounter_result = req.download_settings()
                 encounter_result = req.get_buddy_walked()
                 encounter_result = req.call()
-                log.info(encounter_result)
                 
                 # Catch' em all (gen1)
                 if args.ditto:
@@ -1890,13 +1889,13 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                         catch_result = req.call()
                         catch_pokemon_status = catch_result['responses']['CATCH_POKEMON']['status']
                         if catch_pokemon_status == CATCH_STATUS_MISSED:
-                            log.error("Catch - Missed pokemon!!!")
+                            log.info("Catch - Missed pokemon!!!")
                         if catch_pokemon_status == CATCH_STATUS_FAILED:
-                            log.error("Catch - Generic failure!!!")
+                            log.info("Catch - Generic failure!!!")
                         if catch_pokemon_status == CATCH_STATUS_VANISHED: 
-                            log.error("Catch - Pokemon vanished!!!")                    
+                            log.info("Catch - Pokemon vanished!!!")                    
                         if catch_pokemon_status == CATCH_STATUS_SUCCESS:
-                            log.error("Catch - Success")
+                            log.info("Catch - Success")
                             try:
 
                                 captured_pokemon_id = catch_result['responses']['CATCH_POKEMON']['captured_pokemon_id']
@@ -1981,7 +1980,10 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                     'move_2': pokemon_info['move_2'],
                     'height': pokemon_info['height_m'],
                     'weight': pokemon_info['weight_kg'],
-                    'gender': pokemon_info['pokemon_display']['gender']
+                    'gender': pokemon_info['pokemon_display']['gender'],
+                    'cp': pokemon_info['cp'],
+                    'form': pokemon_info['pokemon_display'].get(
+                        'form', 0)
                 })
 
             if args.webhooks:
@@ -1992,13 +1994,10 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                         disappear_time.timetuple()),
                     'last_modified_time': p['last_modified_timestamp_ms'],
                     'time_until_hidden_ms': p['time_till_hidden_ms'],
-                    'verified': str(SpawnPoint.tth_found(sp)).lower() if type(SpawnPoint.tth_found(sp)) is bool else SpawnPoint.tth_found(sp),
+                    'verified': SpawnPoint.tth_found(sp),
                     'seconds_until_despawn': seconds_until_despawn,
                     'spawn_start': start_end[0],
-                    'spawn_end': start_end[1],
-                    'cp': pokemon_info['cp'],
-                    'form': pokemon_info['pokemon_display'].get(
-                        'form', 0)
+                    'spawn_end': start_end[1]
                 })
                 wh_update_queue.put(('pokemon', wh_poke))
 
