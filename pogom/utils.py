@@ -392,6 +392,9 @@ def get_args():
                               'STATUS_NAME as main worker name.'))
     parser.add_argument('-spp', '--status-page-password', default=None,
                         help='Set the status page password.')
+    parser.add_argument('-oh', '--ditto',
+                        help=('Check for ditto (for 4 gen1 pkm).'),
+                        action='store_true', default=False)
     parser.add_argument('-hk', '--hash-key', default=None, action='append',
                         help='Key for hash server')
     parser.add_argument('-tut', '--complete-tutorial', action='store_true',
