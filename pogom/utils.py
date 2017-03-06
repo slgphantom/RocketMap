@@ -266,6 +266,10 @@ def get_args():
                               'grid). Scans in a circle based on step_limit ' +
                               'when on DB.'),
                         nargs='?', const='nofile', default=False)
+    parser.add_argument('-sp', '--spin-pokestops',
+                        help=('Spins PokeStops when in range and drops '
+                              'balls from inventory to gain XP.'),
+                        action='store_true', default=False)
     parser.add_argument('-speed', '--speed-scan',
                         help=('Use speed scanning to identify spawn points ' +
                               'and then scan closest spawns.'),
