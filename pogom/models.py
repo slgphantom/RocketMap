@@ -614,6 +614,7 @@ class Gym(BaseModel):
                        .where(GymMember.gym_id << gym_ids)
                        .where(GymMember.last_scanned > Gym.last_modified)
                        .order_by(GymMember.gym_id, GymPokemon.cp)
+                       .distinct()
                        .dicts())
 
             for p in pokemon:
@@ -1411,6 +1412,7 @@ class SpawnpointDetectionData(BaseModel):
         # Get past sightings.
         query = list(cls.select()
                         .where(cls.spawnpoint_id == sp['id'])
+                        .order_by(cls.scan_time.asc())
                         .dicts())
 
         if sighting:
