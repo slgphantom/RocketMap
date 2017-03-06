@@ -3,27 +3,23 @@
 
 import logging
 import time
-import random
 
 from math import asin, atan, cos, exp, log, pi, sin, sqrt, tan
 
 log = logging.getLogger(__name__)
 
 def spin_pokestop(api, position, pokestops):
-#    if random.randint(0,100) < 90:
-#        log.info("SKIPPED POKESTOP!")
-#        return
     pokestops_in_range = get_forts_in_range(pokestops, position)
     SPIN_REQUEST_RESULT_SUCCESS = 1
     SPIN_REQUEST_RESULT_OUT_OF_RANGE = 2
     SPIN_REQUEST_RESULT_IN_COOLDOWN_PERIOD = 3
     SPIN_REQUEST_RESULT_INVENTORY_FULL = 4
     for pokestop in pokestops_in_range:
-        log.info("Trying to Drop a Pokeball")
+        log.info("Trying to Drop 10 Potion")
         time.sleep(10)
         req = api.create_request()
-        response_dict = req.recycle_inventory_item(item_id=1,
-                        count=1
+        response_dict = req.recycle_inventory_item(item_id=101,
+                        count=10
                         )
         response_dict = req.call()
         #log.info(response_dict)
@@ -31,9 +27,25 @@ def spin_pokestop(api, position, pokestops):
             drop_details = response_dict['responses']['RECYCLE_INVENTORY_ITEM']
             drop_result = drop_details.get('result', -1)
             if (drop_result == 1):
-                log.info("Dropped a Pokeball")
+                log.info("Dropped 10 Potion")
             else:
-                log.info("Couldn't Drop Pokeball")
+                log.info("Couldn't Drop 10 Potion")         
+                
+        log.info("Trying to Drop 10 Revive")
+        time.sleep(10)
+        req = api.create_request()
+        response_dict = req.recycle_inventory_item(item_id=201,
+                        count=10
+                        )
+        response_dict = req.call()
+        #log.info(response_dict)
+        if ('responses' in response_dict) and ('RECYCLE_INVENTORY_ITEM' in response_dict['responses']):
+            drop_details = response_dict['responses']['RECYCLE_INVENTORY_ITEM']
+            drop_result = drop_details.get('result', -1)
+            if (drop_result == 1):
+                log.info("Dropped 10 Revive")
+            else:
+                log.info("Couldn't Drop 10 Revive")            
         if pokestop.get('type') != 1:
             log.info("That was a gym")
             continue
@@ -45,7 +57,7 @@ def spin_pokestop(api, position, pokestops):
                         fort_longitude=pokestop['longitude'],
                         player_latitude=pokestop['latitude'],
                         player_longitude=pokestop['longitude']
-                        )
+                        )   
         response_dict = req.call()
         #log.info(response_dict)
         if ('responses' in response_dict) and ('FORT_SEARCH' in response_dict['responses']):
@@ -54,16 +66,16 @@ def spin_pokestop(api, position, pokestops):
                 if (spin_result == SPIN_REQUEST_RESULT_SUCCESS) or (spin_result == SPIN_REQUEST_RESULT_INVENTORY_FULL):
                     experience_awarded = spin_details.get('experience_awarded', 0)
                     if experience_awarded:
-                        log.info("Spun pokestop got response data!")
+                        log.info("Spin pokestop got response data!")
                     else:
-                        log.info('Found nothing in pokestop')
+                        log.info('Found nothing in pokestop') 
                 elif spin_result == SPIN_REQUEST_RESULT_OUT_OF_RANGE:
                     log.info("Pokestop out of range.")
                 elif spin_result == SPIN_REQUEST_RESULT_IN_COOLDOWN_PERIOD:
                     log.info("Pokestop in cooldown")
                 else:
-                    log.info("unknown pokestop return")
-    return
+                    log.info("unknown pokestop return")              
+    return  
 
 
 def get_forts_in_range(pokestops, scan_location):
@@ -79,7 +91,7 @@ def get_forts_in_range(pokestops, scan_location):
         fort['longitude']
     ) <= MAX_DISTANCE_FORT_IS_REACHABLE, forts)
 
-    return forts
+    return forts    
 
 def distance(lat1, lon1, lat2, lon2):
     p = 0.017453292519943295
