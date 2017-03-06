@@ -226,14 +226,13 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
                         threadStatus[item]['skip'],
                         threadStatus[item]['captcha'],
                         threadStatus[item]['message']))
-                    
+
         elif display_type[0] == 'account_stats':
             total_pages = print_account_stats(status_text, threadStatus,
                                               account_queue,
                                               account_captchas,
                                               account_failures,
                                               current_page)
-
 
         elif display_type[0] == 'failedaccounts':
             status_text.append('-----------------------------------------')
@@ -265,19 +264,19 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
             status = '{:21} | {:9} | {:9} | {:9}'
             status_text.append(status.format('Key', 'Remaining', 'Maximum',
                                              'Peak'))
+            if hash_key is not None:
+                for key in hash_key:
+                    key_instance = key_scheduler.keys[key]
+                    key_text = key
 
-            for key in hash_key:
-                key_instance = key_scheduler.keys[key]
-                key_text = key
+                    if key_scheduler.current() == key:
+                        key_text += '*'
 
-                if key_scheduler.current() == key:
-                    key_text += '*'
-
-                status_text.append(status.format(
-                    key_text,
-                    key_instance['remaining'],
-                    key_instance['maximum'],
-                    key_instance['peak']))
+                    status_text.append(status.format(
+                        key_text,
+                        key_instance['remaining'],
+                        key_instance['maximum'],
+                        key_instance['peak']))
 
         # Print the status_text for the current screen.
         status_text.append((
@@ -291,7 +290,6 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
         print '\n'.join(status_text)
 
 
-        
 # Print statistics about accounts
 def print_account_stats(rows, thread_status, account_queue,
                         account_captchas, account_failures,
@@ -1061,7 +1059,7 @@ def search_worker_thread(args, account_queue, account_failures,
                 scan_date = datetime.utcnow()
                 response_dict = map_request(api, step_location, args.no_jitter)
                 status['last_scan_date'] = datetime.utcnow()
-                status['account'].update(parse_player_stats(response_dict)
+                status['account'].update(parse_player_stats(response_dict))
 
                 # Record the time and the place that the worker made the
                 # request.
