@@ -862,10 +862,16 @@ class ScannedLocation(BaseModel):
                 'step': scan['step'], 'sp': sp_id}
 
     @classmethod
-    def get_by_cellids(cls, cellids):
+    def get_by_locs(cls, locs):
+        lats, lons = [], []
+        for loc in locs:
+            lats.append(loc[0])
+            lons.append(loc[1])
+
         query = (cls
                  .select()
-                 .where(cls.cellid << cellids)
+                 .where((ScannedLocation.latitude << lats) &
+                        (ScannedLocation.longitude << lons))
                  .dicts())
 
         d = {}
@@ -885,7 +891,8 @@ class ScannedLocation(BaseModel):
     def get_by_loc(cls, loc):
         query = (cls
                  .select()
-                 .where(cls.cellid == cellid(loc))
+                 .where((ScannedLocation.latitude == loc[0]) &
+                        (ScannedLocation.longitude == loc[1]))
                  .dicts())
 
         return query[0] if len(list(query)) else cls.new_loc(loc)
@@ -925,12 +932,12 @@ class ScannedLocation(BaseModel):
 
     # Return list of dicts for upcoming valid band times.
     @classmethod
-    def get_cell_to_linked_spawn_points(cls, cellids):
+    def get_cell_to_linked_spawn_points(cls, cells):
         query = (SpawnPoint
                  .select(SpawnPoint, cls.cellid)
                  .join(ScanSpawnPoint)
                  .join(cls)
-                 .where(cls.cellid << cellids).dicts())
+                 .where(cls.cellid << cells).dicts())
         l = list(query)
         ret = {}
         for item in l:
@@ -1030,16 +1037,14 @@ class ScannedLocation(BaseModel):
         return scan
 
     @classmethod
-    def get_bands_filled_by_cellids(cls, cellids):
-        return int(cls
-                   .select(fn.SUM(case(cls.band1, ((-1, 0),), 1)
-                                  + case(cls.band2, ((-1, 0),), 1)
-                                  + case(cls.band3, ((-1, 0),), 1)
-                                  + case(cls.band4, ((-1, 0),), 1)
-                                  + case(cls.band5, ((-1, 0),), 1))
-                           .alias('band_count'))
-                   .where(cls.cellid << cellids)
-                   .scalar() or 0)
+    def bands_filled(cls, locations):
+        filled = 0
+        for e in locations:
+            sl = cls.get_by_loc(e[1])
+            bands = [sl['band' + str(i)] for i in range(1, 6)]
+            filled += reduce(lambda x, y: x + (y > -1), bands, 0)
+
+        return filled
 
     @classmethod
     def reset_bands(cls, scan_loc):
