@@ -789,13 +789,13 @@ var pGoStyleNight = [{
 }]
 
 var pokemonSprites = {
-    columns: 12,
-    iconWidth: 30,
-    iconHeight: 30,
-    spriteWidth: 360,
-    spriteHeight: 390,
-    filename: 'static/icons-sprite.png',
-    name: 'Normal'
+    columns: 28,
+    iconWidth: 80,
+    iconHeight: 80,
+    spriteWidth: 2240,
+    spriteHeight: 1440,
+    filename: 'static/icons-large-sprite.png',
+    name: 'High-Res'
 }
 
 //
@@ -970,8 +970,36 @@ var StoreOptions = {
         default: 'shield',
         type: StoreTypes.String
     },
+    'gymMarkerSize': {
+        default: 48,
+        type: StoreTypes.Number
+    },
     'zoomLevel': {
         default: 16,
+        type: StoreTypes.Number
+    },
+    'opacity3': {
+        default: 0.17,
+        type: StoreTypes.Number
+    },
+    'opacity2': {
+        default: 0.33,
+        type: StoreTypes.Number
+    },
+    'opacity1': {
+        default: 0.75,
+        type: StoreTypes.Number
+    },
+    'obsoletion3': {
+        default: 1440,
+        type: StoreTypes.Number
+    },
+    'obsoletion2': {
+        default: 720,
+        type: StoreTypes.Number
+    },
+    'obsoletion1': {
+        default: 120,
         type: StoreTypes.Number
     }
 }

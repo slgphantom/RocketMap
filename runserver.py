@@ -7,7 +7,6 @@ import shutil
 import logging
 import time
 import re
-import requests
 import ssl
 import json
 
@@ -22,6 +21,7 @@ from flask_cache_bust import init_cache_busting
 from pogom import config
 from pogom.app import Pogom
 from pogom.utils import get_args, now
+from pogom.altitude import get_gmaps_altitude
 
 from pogom.search import search_overseer_thread
 from pogom.models import (init_database, create_tables, drop_tables,
@@ -41,7 +41,7 @@ log = logging.getLogger()
 
 # Make sure pogom/pgoapi is actually removed if it is an empty directory.
 # This is a leftover directory from the time pgoapi was embedded in
-# PokemonGo-Map.
+# RocketMap.
 # The empty directory will cause problems with `import pgoapi` so it needs to
 # go.
 # Now also removes the pogom/libencrypt and pokecrypt-pgoapi folders,
@@ -154,12 +154,77 @@ def main():
                 '"npm install && npm run build" before starting the server.')
             sys.exit()
 
-    # You need custom image files now.
-    if not os.path.isfile(
-            os.path.join(os.path.dirname(__file__),
-                         'static/icons-sprite.png')):
-        log.critical('Missing sprite files.')
-        sys.exit()
+        # You need custom image files now.
+        if not os.path.isfile(
+                os.path.join(os.path.dirname(__file__),
+                             'static/icons-sprite.png')):
+            log.critical('Missing sprite files.')
+            sys.exit()
+
+    # Beehive configuration
+    beehive_workers = [args.workers]
+    if args.beehive > 0:
+        beehive_size = 1
+        # Calculate number of hives required ( -bh 2 => i:1, i:2 )
+        for i in range(1, args.beehive+1):
+            beehive_size += i*6
+
+        # Initialize worker distribution list
+        beehive_workers = [0 for x in range(beehive_size)]
+        skip_indexes = []
+        hives_ignored = 0
+        workers_forced = 0
+        log.debug('-bhw --beehive-workers: %s', args.beehive_workers)
+
+        # Parse beehive configuration
+        for i in range(0, len(args.beehive_workers)):
+            bhw = args.beehive_workers[i].split(':')
+            bhw_index = int(bhw[0])
+            bhw_workers = int(bhw[1])
+            if (bhw_index >= 0) and (bhw_index < beehive_size):
+                if bhw_index in skip_indexes:
+                    log.warning('Duplicate hive index found in -bhw ' +
+                                '--beehive-workers: %d', bhw_index)
+                    continue
+                if bhw_workers <= 0:
+                    skip_indexes.append(bhw_index)
+                    beehive_workers[bhw_index] = 0
+                    hives_ignored += 1
+                else:
+                    skip_indexes.append(bhw_index)
+                    beehive_workers[bhw_index] = bhw_workers
+                    workers_forced += bhw_workers
+            else:
+                log.warning('Invalid hive index found in -bhw ' +
+                            '--beehive-workers: %d', bhw_index)
+        # Check if we have enough workers for beehive setup.
+        workers_required = workers_forced
+        if args.workers_per_hive > 0:
+            count = beehive_size - len(skip_indexes)
+            workers_required += count * args.workers_per_hive
+
+        log.info('Beehive size: %d (%d hives ignored). Workers forced: ' +
+                 '%d. Workers required: %d', beehive_size, hives_ignored,
+                 workers_forced, workers_required)
+        if args.workers < workers_required:
+            log.critical('Not enough workers to fill the beehive. ' +
+                         'Increase -w --workers, decrease -bh --beehive ' +
+                         'or decrease -wph --workers-per-hive')
+            sys.exit()
+
+        # Assign remaining workers to available hives.
+        remaining_workers = args.workers - workers_forced
+        populate_index = 0
+        while remaining_workers > 0:
+            beehive_index = populate_index % beehive_size
+            if beehive_index in skip_indexes:
+                populate_index += 1
+                continue
+
+            beehive_workers[beehive_index] += 1
+            populate_index += 1
+            remaining_workers -= 1
+        log.debug('Beehive worker distribution: %s', beehive_workers)
 
     # These are very noisy, let's shush them up a bit.
     logging.getLogger('peewee').setLevel(logging.INFO)
@@ -196,15 +261,23 @@ def main():
     if position is None or not any(position):
         log.error("Location not found: '{}'".format(args.location))
         sys.exit()
+
     # Use the latitude and longitude to get the local altitude from Google.
-    try:
-        url = ('https://maps.googleapis.com/maps/api/elevation/json?' +
-               'locations={},{}').format(str(position[0]), str(position[1]))
-        altitude = requests.get(url).json()[u'results'][0][u'elevation']
+    (altitude, status) = get_gmaps_altitude(position[0], position[1],
+                                            args.gmaps_key)
+    if altitude is not None:
         log.debug('Local altitude is: %sm', altitude)
         position = (position[0], position[1], altitude)
-    except (requests.exceptions.RequestException, IndexError, KeyError):
-        log.error('Unable to retrieve altitude from Google APIs; setting to 0')
+    else:
+        if status == 'REQUEST_DENIED':
+            log.error(
+                'Google API Elevation request was denied. You probably ' +
+                'forgot to enable elevation api in https://console.' +
+                'developers.google.com/apis/api/elevation_backend/')
+            sys.exit()
+        else:
+            log.error('Unable to retrieve altitude from Google APIs' +
+                      'setting to 0')
 
     log.info('Parsed location is: %.4f/%.4f/%.4f (lat/lng/alt)',
              position[0], position[1], position[2])
@@ -222,6 +295,8 @@ def main():
     config['CHINA'] = args.china
 
     app = Pogom(__name__)
+    app.before_request(app.validate_request)
+
     db = init_database(app)
     if args.clear_db:
         log.info('Clearing database')
@@ -268,6 +343,7 @@ def main():
     # TODO: Rework webhooks entirely so a LFU cache isn't necessary.
     wh_updates_queue = Queue()
     wh_key_cache = LFUCache(maxsize=args.wh_lfu_size)
+    app.set_wh_updates_queue(wh_updates_queue)
 
     # Thread to process webhook updates.
     for i in range(args.wh_threads):
@@ -306,7 +382,7 @@ def main():
                 file.write(json.dumps(spawns))
                 log.info('Finished exporting spawn points')
 
-        argset = (args, new_location_queue, pause_bit,
+        argset = (args, beehive_workers, new_location_queue, pause_bit,
                   heartbeat, db_updates_queue, wh_updates_queue)
 
         log.debug('Starting a %s search thread', args.scheduler)

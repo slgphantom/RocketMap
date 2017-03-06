@@ -4,7 +4,8 @@
 import calendar
 import logging
 
-from flask import Flask, abort, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request,\
+    make_response
 from flask.json import JSONEncoder
 from flask_compress import Compress
 from datetime import datetime
@@ -12,19 +13,39 @@ from s2sphere import LatLng
 from pogom.utils import get_args
 from datetime import timedelta
 from collections import OrderedDict
+from bisect import bisect_left
 
 from . import config
 from .models import (Pokemon, Gym, Pokestop, ScannedLocation,
-                     MainWorker, WorkerStatus)
-from .utils import now
+                     MainWorker, WorkerStatus, Token)
+from .utils import now, dottedQuadToNum, get_blacklist
 log = logging.getLogger(__name__)
 compress = Compress()
 
 
 class Pogom(Flask):
+
     def __init__(self, import_name, **kwargs):
         super(Pogom, self).__init__(import_name, **kwargs)
         compress.init_app(self)
+
+        args = get_args()
+
+        # Global blist
+        if not args.disable_blacklist:
+            log.info('Retrieving blacklist...')
+            self.blacklist = get_blacklist()
+            # Sort & index for binary search
+            self.blacklist.sort(key=lambda r: r[0])
+            self.blacklist_keys = [
+                dottedQuadToNum(r[0]) for r in self.blacklist
+            ]
+        else:
+            log.info('Blacklist disabled for this session.')
+            self.blacklist = []
+            self.blacklist_keys = []
+
+        # Routes
         self.json_encoder = CustomJSONEncoder
         self.route("/", methods=['GET'])(self.fullmap)
         self.route("/raw_data", methods=['GET'])(self.raw_data)
@@ -38,6 +59,57 @@ class Pogom(Flask):
         self.route("/status", methods=['GET'])(self.get_status)
         self.route("/status", methods=['POST'])(self.post_status)
         self.route("/gym_data", methods=['GET'])(self.get_gymdata)
+        self.route("/bookmarklet", methods=['GET'])(self.get_bookmarklet)
+        self.route("/inject.js", methods=['GET'])(self.render_inject_js)
+        self.route("/submit_token", methods=['POST'])(self.submit_token)
+        self.route("/get_stats", methods=['GET'])(self.get_account_stats)
+        self.route("/geofency_wh", methods=['POST'])(self.post_geofency_wh)
+
+    def get_bookmarklet(self):
+        args = get_args()
+        return render_template('bookmarklet.html',
+                               domain=args.manual_captcha_domain)
+
+    def render_inject_js(self):
+        args = get_args()
+        return render_template('inject.js',
+                               domain=args.manual_captcha_domain,
+                               timer=args.manual_captcha_refresh)
+
+    def submit_token(self):
+        response = 'error'
+        if request.form:
+            token = request.form.get('token')
+            query = Token.insert(token=token, last_updated=datetime.utcnow())
+            query.execute()
+            response = 'ok'
+        r = make_response(response)
+        r.headers.add('Access-Control-Allow-Origin', '*')
+        return r
+
+    def get_account_stats(self):
+        stats = MainWorker.get_account_stats()
+        r = make_response(jsonify(**stats))
+        r.headers.add('Access-Control-Allow-Origin', '*')
+        return r
+
+    def validate_request(self):
+        if self._ip_is_blacklisted(request.remote_addr):
+            log.debug('Denied access to %s.', request.remote_addr)
+            abort(403)
+
+    def _ip_is_blacklisted(self, ip):
+        if not self.blacklist:
+            return False
+
+        # Get the nearest IP range
+        pos = max(bisect_left(self.blacklist_keys, ip) - 1, 0)
+        ip_range = self.blacklist[pos]
+
+        start = dottedQuadToNum(ip_range[0])
+        end = dottedQuadToNum(ip_range[1])
+
+        return start <= dottedQuadToNum(ip) <= end
 
     def set_search_control(self, control):
         self.search_control = control
@@ -50,6 +122,9 @@ class Pogom(Flask):
 
     def set_current_location(self, location):
         self.current_location = location
+
+    def set_wh_updates_queue(self, wh_updates_queue):
+        self.wh_updates_queue = wh_updates_queue
 
     def get_search_control(self):
         return jsonify({'status': not self.search_control.is_set()})
@@ -478,6 +553,33 @@ class Pogom(Flask):
         else:
             d['login'] = 'failed'
         return jsonify(d)
+
+
+    def post_geofency_wh(self):
+        args = get_args()
+        if args.fixed_location:
+            return 'Location changes are turned off', 403
+
+        entry = request.form.get('entry')
+
+        # trigger only when entering locations
+        if entry == '1':
+            lat = request.form.get('latitude', type=float)
+            lon = request.form.get('longitude', type=float)
+            if not (lat and lon):
+                log.warning('Invalid next location: %s,%s', lat, lon)
+                return 'bad parameters', 400
+            else:
+                self.location_queue.put((lat, lon, 0))
+                self.set_current_location((lat, lon, 0))
+                log.info('Changing next location: %s,%s', lat, lon)
+
+                # Geofency specific things
+                name = request.form.get('name')
+                self.wh_updates_queue.put(('location', {'latitude': lat, 'longitude': lon}))
+                log.info('Queued next location "%s" for webhooks', name)
+
+                return self.loc()
 
 
 class CustomJSONEncoder(JSONEncoder):

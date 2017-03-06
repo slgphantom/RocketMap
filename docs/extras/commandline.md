@@ -3,18 +3,21 @@
     usage: runserver.py
                         [-h] [-cf CONFIG] [-a AUTH_SERVICE] [-u USERNAME]
                         [-p PASSWORD] [-w WORKERS] [-asi ACCOUNT_SEARCH_INTERVAL]
-                        [-ari ACCOUNT_REST_INTERVAL] [-ac ACCOUNTCSV] [-bh]
-                        [-wph WORKERS_PER_HIVE] [-l LOCATION] [-nj]
+                        [-ari ACCOUNT_REST_INTERVAL] [-ac ACCOUNTCSV]
+                        [-bh LEAPS] [-wph WORKERS_PER_HIVE]
+                        [-bhw BEEHIVE_WORKERS] [-l LOCATION] [-nj]
                         [-st STEP_LIMIT] [-sd SCAN_DELAY]
                         [--spawn-delay SPAWN_DELAY] [-enc] [-cs] [-ck CAPTCHA_KEY]
-                        [-cds CAPTCHA_DSK] [-ed ENCOUNTER_DELAY]
-                        [-ewht ENCOUNTER_WHITELIST | -eblk ENCOUNTER_BLACKLIST]
+                        [-cds CAPTCHA_DSK] [-mcd MANUAL-CAPTCHA-DOMAIN]
+                        [-mcr MANUAL-CAPTCHA-REFRESH]
+                        [-mct MANUAL-CAPTCHA-TIMEOUT] [-ed ENCOUNTER_DELAY]
+                        [-ewht ENCOUNTER_WHITELIST | -eblk ENCOUNTER_BLACKLIST | -ewhtf ENCOUNTER_WHITELIST_FILE | -eblkf ENCOUNTER_BLACKLIST_FILE]
                         [-ld LOGIN_DELAY] [-lr LOGIN_RETRIES] [-mf MAX_FAILURES]
                         [-me MAX_EMPTY] [-bsr BAD_SCAN_RETRY]
                         [-msl MIN_SECONDS_LEFT] [-dc] [-H HOST] [-P PORT]
                         [-L LOCALE] [-c] [-m MOCK] [-ns] [-os] [-nsc] [-fl] -k
                         GMAPS_KEY [--skip-empty] [-C] [-D DB] [-cd] [-np] [-ng]
-                        [-nk] [-ss [SPAWNPOINT_SCANNING]] [-speed] [-kph KPH]
+                        [-nk] [-ss [SPAWNPOINT_SCANNING]] [-speed] [-kph KPH] [-ldur DURATION]
                         [--dump-spawnpoints] [-pd PURGE_DATA] [-px PROXY] [-pxsc]
                         [-pxt PROXY_TIMEOUT] [-pxd PROXY_DISPLAY]
                         [-pxf PROXY_FILE] [-pxr PROXY_REFRESH]
@@ -33,16 +36,16 @@
                         [-spp STATUS_PAGE_PASSWORD] [-hk HASH_KEY] [-tut]
                         [-el ENCRYPT_LIB] [-odt ON_DEMAND_TIMEOUT]
                         [-v [filename.log] | -vv [filename.log]]
- 
+
     Args that start with '--' (eg. -a) can also be set in a config file
-    (default: <PokemonGo-Map Project Root>/config/config.ini or specified
+    (default: <RocketMap Project Root>/config/config.ini or specified
     via -cf). The recognized syntax for setting (key, value) pairs is based on the
     INI and YAML formats (e.g. key=value or foo=TRUE). For full documentation of
     the differences from the standards please refer to the ConfigArgParse
     documentation. If an arg is specified in more than one place, then commandline
     values override environment variables which override config file values which
     override defaults.
- 
+
     optional arguments:
       -h, --help            show this help message and exit [env var:
                             POGOMAP_HELP]
@@ -73,14 +76,20 @@
                             Load accounts from CSV file containing
                             "auth_service,username,passwd" lines [env var:
                             POGOMAP_ACCOUNTCSV]
-      -bh, --beehive        Use beehive configuration for multiple accounts, one
-                            account per hex. Make sure to keep -st under 5, and -w
-                            under the total amount of accounts available. [env
-                            var: POGOMAP_BEEHIVE]
+      -bh LEAPS, --beehive LEAPS
+                            Number of leaps desired for beehive setup.
+                            Example: -bh 1 = 7 hexes | -bh 2 = 19 hexes.
+                            Default value is 0 (disabled).
+                            [env var: POGOMAP_BEEHIVE]
       -wph WORKERS_PER_HIVE, --workers-per-hive WORKERS_PER_HIVE
-                            Only referenced when using --beehive. Sets number of
-                            workers per hive. Default value is 1. [env var:
-                            POGOMAP_WORKERS_PER_HIVE]
+                            Only referenced when using --beehive. Forces the
+                            number of workers per hive. Default value is 0.
+                            [env var: POGOMAP_WORKERS_PER_HIVE]
+      -bhw BEEHIVE_WORKERS, --beehive-workers BEEHIVE_WORKERS
+                            Only referenced when using --beehive. Lets you
+                            disable hives individually or force a specific
+                            number of workers. Format is a list of pairs:
+                            <hive index>:<worker count>, e.g. [1:0, 3:0, 4:5]
       -l LOCATION, --location LOCATION
                             Location, can be an address or coordinates [env var:
                             POGOMAP_LOCATION]
@@ -103,8 +112,18 @@
       -ck CAPTCHA_KEY, --captcha-key CAPTCHA_KEY
                             2Captcha API key. [env var: POGOMAP_CAPTCHA_KEY]
       -cds CAPTCHA_DSK, --captcha-dsk CAPTCHA_DSK
-                            PokemonGo captcha data-sitekey. [env var:
+                            Pokemon Go captcha data-sitekey. [env var:
                             POGOMAP_CAPTCHA_DSK]
+      -mcd MANUAL-CAPTCHA-DOMAIN --manual-captcha-domain
+                            Domain to where captcha tokens will be sent
+                            (default: http://127.0.0.1:5000)
+      -mcr MANUAL-CAPTCHA-REFRESH --manual-captcha-refresh
+                            Time available before captcha page refreshes
+                            (default: 30 seconds)
+      -mct MANUAL-CAPTCHA-TIMEOUT -manual-captcha-timeout
+                            Maximum time captchas will wait for manual captcha
+                            solving. On timeout, if enabled, 2Captcha will be
+                            used to solve captcha. (default: 0 - disabled)
       -ed ENCOUNTER_DELAY, --encounter-delay ENCOUNTER_DELAY
                             Time delay between encounter pokemon in scan threads.
                             [env var: POGOMAP_ENCOUNTER_DELAY]
@@ -114,6 +133,14 @@
       -eblk ENCOUNTER_BLACKLIST, --encounter-blacklist ENCOUNTER_BLACKLIST
                             List of Pokemon to NOT encounter for more stats. [env
                             var: POGOMAP_ENCOUNTER_BLACKLIST]
+      -ewhtf ENCOUNTER_WHITELIST_FILE, --encounter-whitelist-file ENCOUNTER_WHITELIST_FILE
+                            File containing a list of Pokemon to encounter for
+                            more stats. [env var:
+                            POGOMAP_ENCOUNTER_WHITELIST_FILE]
+      -eblkf ENCOUNTER_BLACKLIST_FILE, --encounter-blacklist-file ENCOUNTER_BLACKLIST_FILE
+                            File containing a list of Pokemon to NOT encounter for
+                            more stats. [env var:
+                            POGOMAP_ENCOUNTER_BLACKLIST_FILE]
       -ld LOGIN_DELAY, --login-delay LOGIN_DELAY
                             Time delay between each login attempt. [env var:
                             POGOMAP_LOGIN_DELAY]
@@ -186,6 +213,10 @@
                             scan closest spawns. [env var: POGOMAP_SPEED_SCAN]
       -kph KPH, --kph KPH   Set a maximum speed in km/hour for scanner movement.
                             [env var: POGOMAP_KPH]
+      -ldur DURATION, --lure-duration DURATION
+                            Change duration for lures set on pokestops. This is
+                            useful for events that extend lure duration.
+                            [env var: POGOMAP_LURE_DURATION]
       --dump-spawnpoints    Dump the spawnpoints from the db to json (only for use
                             with -ss). [env var: POGOMAP_DUMP_SPAWNPOINTS]
       -pd PURGE_DATA, --purge-data PURGE_DATA
@@ -290,7 +321,7 @@
                             timeout(in seconds). [env var:
                             POGOMAP_ON_DEMAND_TIMEOUT]
       -v [filename.log], --verbose [filename.log]
-                            Show debug messages from PokemonGo-Map and pgoapi.
+                            Show debug messages from RocketMap and pgoapi.
                             Optionally specify file to log to. [env var:
                             POGOMAP_VERBOSE]
       -vv [filename.log], --very-verbose [filename.log]
