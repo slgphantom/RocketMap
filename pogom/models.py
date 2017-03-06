@@ -2217,6 +2217,17 @@ def parse_gyms(args, gym_responses, wh_update_queue, db_update_queue):
              len(gym_details),
              len(gym_members))
 
+    
+def parse_player_stats(response_dict):
+    inventory_items = response_dict.get('responses', {})\
+        .get('GET_INVENTORY', {}).get('inventory_delta', {})\
+        .get('inventory_items', [])
+    for item in inventory_items:
+        item_data = item.get('inventory_item_data', {})
+        if 'player_stats' in item_data:
+            return item_data['player_stats']
+    return {}
+        
 
 def db_updater(args, q, db):
     # The forever loop.
