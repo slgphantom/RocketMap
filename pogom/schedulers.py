@@ -660,8 +660,7 @@ class SpeedScan(HexSearch):
     def band_status(self):
         try:
             bands_total = len(self.locations) * 5
-            bands_filled = ScannedLocation.get_bands_filled_by_cellids(
-                self.scans.keys())
+            bands_filled = ScannedLocation.bands_filled(self.locations)
             percent = bands_filled * 100.0 / bands_total
             if bands_total == bands_filled:
                 log.info('Initial spawnpoint scan is complete')
@@ -690,7 +689,8 @@ class SpeedScan(HexSearch):
         start = time.time()
 
         # prefetch all scanned locations
-        scanned_locations = ScannedLocation.get_by_cellids(self.scans.keys())
+        locs = [scan['loc'] for scan in self.scans.values()]
+        scanned_locations = ScannedLocation.get_by_locs(locs)
 
         # extract all spawnpoints into a dict with spawnpoint
         # id -> spawnpoint for easy access later
