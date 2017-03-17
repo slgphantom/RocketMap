@@ -926,7 +926,7 @@ def search_worker_thread(args, account_queue, account_failures,
                     log.warning(status['message'])
                     account_failures.append({'account': account,
                                              'last_fail_time': now(),
-                                             'reason': 'failures'})
+                                             'reason': 'failed more than {} times'.format(args.max_failures)})
                     # Exit this loop to get a new account and have the API
                     # recreated.
                     break
@@ -1243,7 +1243,7 @@ def search_worker_thread(args, account_queue, account_failures,
             traceback.print_exc(file=sys.stdout)
             account_failures.append({'account': account,
                                      'last_fail_time': now(),
-                                     'reason': 'exception'})
+                                     'reason': repr(e)})
             time.sleep(args.scan_delay)
 
 
