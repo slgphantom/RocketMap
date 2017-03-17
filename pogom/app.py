@@ -10,6 +10,8 @@ from flask.json import JSONEncoder
 from flask_compress import Compress
 from datetime import datetime
 from s2sphere import LatLng
+
+from pogom.scout import perform_scout
 from pogom.utils import get_args
 from datetime import timedelta
 from collections import OrderedDict
@@ -65,6 +67,12 @@ class Pogom(Flask):
         self.route("/get_stats", methods=['GET'])(self.get_account_stats)
         self.route("/robots.txt", methods=['GET'])(self.render_robots_txt)
         self.route("/geofency_wh", methods=['POST'])(self.post_geofency_wh)
+        self.route("/scout", methods=['GET'])(self.get_scout_data)
+
+    def get_scout_data(self):
+        encounterId = request.args.get('encounter_id')
+        p = Pokemon.get(Pokemon.encounter_id == encounterId)
+        return jsonify(perform_scout(p))
 
     def render_robots_txt(self):
         return render_template('robots.txt')
