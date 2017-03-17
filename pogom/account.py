@@ -204,28 +204,27 @@ def complete_tutorial(api, account, tutorial_state):
     return True
 
 
-# Complete tutorial with a level up by a Pokestop spin.
+# Perform a Pokestop spin.
 # API argument needs to be a logged in API instance.
 # Called during fort parsing in models.py
-def tutorial_pokestop_spin(api, map_dict, forts, step_location, account):
-    player_level = get_player_level(map_dict)
-    if player_level > 1:
-        log.debug(
-            'No need to spin a Pokestop. ' +
-            'Account %s is already level %d.',
-            account['username'], player_level)
-    else:  # Account needs to spin a Pokestop for level 2.
-        log.debug(
-            'Spinning Pokestop for account %s.',
-            account['username'])
-        for fort in forts:
-            if fort.get('type') == 1:
-                if spin_pokestop(api, fort, step_location):
-                    log.debug(
-                        'Account %s successfully spun a Pokestop ' +
-                        'after completed tutorial.',
-                        account['username'])
-                    return True
+def pokestop_spin(api, map_dict, forts, step_location, account):
+    log.debug(
+        'Spinning Pokestop for account %s.',
+        account['username'])
+    for fort in forts:
+        if fort.get('type') == 1:
+            if pokestop_spinnable(fort, step_location) and spin_pokestop(api, fort, step_location):
+                log.debug(
+                    'Account %s successfully spun a Pokestop.',
+                    account['username'])
+                log.debug("Dropping some items for account {}".format(account["username"]))
+                drop_items(api, map_dict, 1, 30, 0.40, "Poke Ball")
+                drop_items(api, map_dict, 2, 30, 0.40, "Great Ball")
+                drop_items(api, map_dict, 101, 30, 0.40, "Potion")
+                drop_items(api, map_dict, 102, 30, 0.40, "Super Potion")
+                drop_items(api, map_dict, 201, 30, 0.40, "Revive")
+                drop_items(api, map_dict, 701, 30, 0.40, "Razz Berry")
+                return True
 
     return False
 
@@ -246,41 +245,61 @@ def get_player_level(map_dict):
     return 0
 
 
+def get_item_count(map_dict, item_id):
+    inventory_items = map_dict['responses'].get(
+        'GET_INVENTORY', {}).get(
+        'inventory_delta', {}).get(
+        'inventory_items', [])
+    item_data = [item['inventory_item_data']['item']
+                 for item in inventory_items
+                 if 'item' in item.get('inventory_item_data', {}) and item['inventory_item_data']['item'][
+                     'item_id'] == item_id]
+    if len(item_data) > 0:
+        return item_data[0].get('count', 0)
+
+    return 0
+
+
 def spin_pokestop(api, fort, step_location):
-    spinning_radius = 0.04
-    if in_radius((fort['latitude'], fort['longitude']), step_location,
-                 spinning_radius):
-        log.debug('Attempt to spin Pokestop (ID %s)', fort['id'])
+    log.info('Attempt to spin Pokestop: {}'.format(repr(fort)))
 
-        time.sleep(random.uniform(0.8, 1.8))  # Do not let Niantic throttle
-        spin_response = spin_pokestop_request(api, fort, step_location)
-        time.sleep(random.uniform(2, 4))  # Do not let Niantic throttle
+    time.sleep(random.uniform(0.8, 1.8))  # Do not let Niantic throttle
+    spin_response = spin_pokestop_request(api, fort, step_location)
+    time.sleep(random.uniform(2, 4))  # Do not let Niantic throttle
 
-        # Check for reCaptcha
-        captcha_url = spin_response['responses'][
-            'CHECK_CHALLENGE']['challenge_url']
-        if len(captcha_url) > 1:
-            log.debug('Account encountered a reCaptcha.')
-            return False
+    # Check for reCaptcha
+    captcha_url = spin_response['responses'][
+        'CHECK_CHALLENGE']['challenge_url']
+    if len(captcha_url) > 1:
+        log.info('Account encountered a reCaptcha.')
+        return False
 
-        spin_result = spin_response['responses']['FORT_SEARCH']['result']
-        if spin_result is 1:
-            log.debug('Successful Pokestop spin.')
-            return True
-        elif spin_result is 2:
-            log.debug('Pokestop was not in range to spin.')
-        elif spin_result is 3:
-            log.debug('Failed to spin Pokestop. Has recently been spun.')
-        elif spin_result is 4:
-            log.debug('Failed to spin Pokestop. Inventory is full.')
-        elif spin_result is 5:
-            log.debug('Maximum number of Pokestops spun for this day.')
-        else:
-            log.debug(
-                'Failed to spin a Pokestop. Unknown result %d.',
-                spin_result)
-
+    spin_result = spin_response['responses']['FORT_SEARCH']['result']
+    if spin_result is 1:
+        log.info('Successful Pokestop spin.')
+        return True
+    elif spin_result is 2:
+        log.info('Pokestop was not in range to spin.')
+    elif spin_result is 3:
+        log.info('Failed to spin Pokestop. Has recently been spun.')
+    elif spin_result is 4:
+        log.info('Failed to spin Pokestop. Inventory is full.')
+    elif spin_result is 5:
+        log.info('Maximum number of Pokestops spun for this day.')
+    else:
+        log.info(
+            'Failed to spin a Pokestop. Unknown result %d.',
+            spin_result)
     return False
+
+
+def pokestop_spinnable(fort, step_location):
+    spinning_radius = 0.04
+    in_range = in_radius((fort['latitude'], fort['longitude']), step_location,
+                 spinning_radius)
+    now = time.time()
+    needs_cooldown = "cooldown_complete_timestamp_ms" in fort and fort["cooldown_complete_timestamp_ms"] / 1000 > now
+    return in_range and not needs_cooldown
 
 
 def spin_pokestop_request(api, fort, step_location):
@@ -305,3 +324,39 @@ def spin_pokestop_request(api, fort, step_location):
     except Exception as e:
         log.warning('Exception while spinning Pokestop: %s', repr(e))
         return False
+
+
+def drop_items(api, map_dict, item_id, min_count, drop_fraction, item_name):
+    item_count = get_item_count(map_dict, item_id)
+    drop_count = int(item_count * drop_fraction)
+    if item_count > min_count and drop_count > 0:
+        result = drop_items_request(api, item_id, drop_count)
+        if result == 1:
+            log.info("Dropped {} {}s.".format(drop_count, item_name))
+        else:
+            log.warning("Failed dropping {} {}s.".format(drop_count, item_name))
+    else:
+        log.debug("Got {} {}s. No need to drop.".format(drop_count, item_name))
+
+
+def drop_items_request(api, item_id, amount):
+    time.sleep(5)
+    try:
+        req = api.create_request()
+        response_dict = req.recycle_inventory_item(item_id=item_id,
+                                                   count=amount)
+        response_dict = req.check_challenge()
+        response_dict = req.get_hatched_eggs()
+        response_dict = req.get_inventory()
+        response_dict = req.check_awarded_badges()
+        response_dict = req.download_settings()
+        response_dict = req.get_buddy_walked()
+        response_dict = req.call()
+        if ('responses' in response_dict) and ('RECYCLE_INVENTORY_ITEM' in response_dict['responses']):
+            drop_details = response_dict['responses']['RECYCLE_INVENTORY_ITEM']
+            return drop_details.get('result', -1)
+    except Exception as e:
+        log.warning('Exception while dropping items: %s', repr(e))
+        return False
+
+
