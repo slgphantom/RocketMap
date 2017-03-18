@@ -215,8 +215,6 @@ def pokestop_spin(api, map_dict, forts, step_location, account):
                     'Account %s successfully spun a Pokestop.',
                     account['username'])
                 log.debug("Dropping some items for account {}".format(account["username"]))
-                drop_items(api, map_dict, 1, 30, 0.40, "Poke Ball")
-                drop_items(api, map_dict, 2, 30, 0.40, "Great Ball")
                 drop_items(api, map_dict, 101, 30, 0.40, "Potion")
                 drop_items(api, map_dict, 102, 30, 0.40, "Super Potion")
                 drop_items(api, map_dict, 201, 30, 0.40, "Revive")
