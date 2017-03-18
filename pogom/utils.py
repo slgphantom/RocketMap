@@ -339,6 +339,10 @@ def get_args():
     parser.add_argument('-wh', '--webhook',
                         help='Define URL(s) to POST webhook information to.',
                         default=None, dest='webhooks', action='append')
+    parser.add_argument('-sp', '--spin-pokestops',
+                        help=('Spins PokeStops when in range and drops '
+                              'balls from inventory to gain XP.'),
+                        action='store_true', default=False)
     parser.add_argument('-gi', '--gym-info',
                         help=('Get all details about gyms (causes an ' +
                               'additional API hit for every gym).'),
