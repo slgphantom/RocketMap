@@ -21,6 +21,7 @@ key_scheduler = schedulers.KeyScheduler(args.hash_key)
 scoutLock = Lock()
 last_scout_timestamp = None
 scout_delay_seconds = 60
+encounter_cache = {}
 
 
 def encounter_request(encounter_id, spawnpoint_id, latitude, longitude):
@@ -56,10 +57,13 @@ def calc_level(pokemon_info):
 
 
 def perform_scout(p):
-    global api, last_scout_timestamp
+    global api, last_scout_timestamp, encounter_cache
 
     if not args.scout_account_username:
-        return { "msg": "No scout account given." }
+        return { "msg": "No scout account configured." }
+
+    if p.encounter_id in encounter_cache:
+        return encounter_cache[p.encounter_id]
 
     pname = get_pokemon_name(p.pokemon_id)
 
@@ -127,6 +131,7 @@ def perform_scout(p):
             ret['prob_yellow'] = "{:.1f}".format(probs[2] * 100)
         else:
             log.warning("No capture_probability info found")
+        encounter_cache[p.encounter_id] = ret
         return ret
 
     return {
