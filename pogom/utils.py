@@ -288,9 +288,6 @@ def get_args():
                         help=('Dump the spawnpoints from the db to json ' +
                               '(only for use with -ss).'),
                         action='store_true', default=False)
-    parser.add_argument('-oh', '--ditto',
-                        help=('Check for ditto (for 4 gen1 pkm).'),
-                        action='store_true', default=False)
     parser.add_argument('-pd', '--purge-data',
                         help=('Clear Pokemon from database this many hours ' +
                               'after they disappear (0 to disable).'),
