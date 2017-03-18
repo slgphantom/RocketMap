@@ -32,7 +32,7 @@ from .utils import get_pokemon_name, get_pokemon_rarity, get_pokemon_types, \
     get_move_name, get_move_damage, get_move_energy, get_move_type
 from .transform import transform_from_wgs_to_gcj, get_new_coords
 from .customLog import printPokemon
-from .account import tutorial_pokestop_spin
+from .account import pokestop_spin
 log = logging.getLogger(__name__)
 
 args = get_args()
@@ -1934,7 +1934,7 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
         # Complete tutorial with a Pokestop spin
         if args.complete_tutorial and not (len(captcha_url) > 1):
             if config['parse_pokestops']:
-                tutorial_pokestop_spin(
+                pokestop_spin(
                     api, map_dict, forts, step_location, account)
             else:
                 log.error(
@@ -2235,6 +2235,17 @@ def parse_gyms(args, gym_responses, wh_update_queue, db_update_queue):
     log.info('Upserted gyms: %d, gym members: %d.',
              len(gym_details),
              len(gym_members))
+
+
+def parse_player_stats(response_dict):
+    inventory_items = response_dict.get('responses', {})\
+        .get('GET_INVENTORY', {}).get('inventory_delta', {})\
+        .get('inventory_items', [])
+    for item in inventory_items:
+        item_data = item.get('inventory_item_data', {})
+        if 'player_stats' in item_data:
+            return item_data['player_stats']
+    return {}
 
 
 def db_updater(args, q, db):

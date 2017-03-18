@@ -40,7 +40,8 @@ from pgoapi.utilities import f2i
 from pgoapi import utilities as util
 from pgoapi.hash_server import HashServer
 
-from .models import parse_map, GymDetails, parse_gyms, MainWorker, WorkerStatus
+from .models import (parse_map, GymDetails, parse_gyms, parse_player_stats,
+                     MainWorker, WorkerStatus)
 from .fakePogoApi import FakePogoApi
 from .utils import now, generate_device_info
 from .transform import get_new_coords, jitter_location
@@ -89,14 +90,17 @@ def switch_status_printer(display_type, current_page, mainlog,
         elif command.isdigit():
             current_page[0] = int(command)
             mainlog.handlers[0].setLevel(logging.CRITICAL)
-            display_type[0] = 'workers'
+        elif command.lower() == 'a':
+            mainlog.handlers[0].setLevel(logging.CRITICAL)
+            display_type[0] = 'account_stats'
         elif command.lower() == 'f':
             mainlog.handlers[0].setLevel(logging.CRITICAL)
             display_type[0] = 'failedaccounts'
         elif command.lower() == 'h':
             mainlog.handlers[0].setLevel(logging.CRITICAL)
             display_type[0] = 'hashstatus'
-
+        elif command.lower() == 'q':
+            os._exit(0)
 
 # Thread to print out the status of each worker.
 def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
@@ -224,6 +228,13 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
                         threadStatus[item]['captcha'],
                         threadStatus[item]['message']))
 
+        elif display_type[0] == 'account_stats':
+            total_pages = print_account_stats(status_text, threadStatus,
+                                              account_queue,
+                                              account_captchas,
+                                              account_failures,
+                                              current_page)
+
         elif display_type[0] == 'failedaccounts':
             status_text.append('-----------------------------------------')
             status_text.append('Accounts on hold:')
@@ -271,13 +282,108 @@ def status_printer(threadStatus, search_items_queue_array, db_updates_queue,
         # Print the status_text for the current screen.
         status_text.append((
             'Page {}/{}. Page number to switch pages. F to show on hold ' +
-            'accounts. H to show hash status. <ENTER> alone to switch ' +
-            'between status and log view').format(current_page[0],
-                                                  total_pages))
+            'accounts. H to show hash status. A to show account stats. '
+            '<ENTER> alone to switch between status and log view. Q to force quit the server.')
+                           .format(current_page[0], total_pages))
         # Clear the screen.
         os.system('cls' if os.name == 'nt' else 'clear')
         # Print status.
         print '\n'.join(status_text)
+
+
+# Print statistics about accounts
+def print_account_stats(rows, thread_status, account_queue,
+                        account_captchas, account_failures,
+                        current_page):
+    rows.append('-----------------------------------------')
+    rows.append('Account statistics:')
+    rows.append('-----------------------------------------')
+
+    # Collect all accounts.
+    accounts = []
+    for item in thread_status:
+        if thread_status[item]['type'] == 'Worker':
+            worker = thread_status[item]
+            account = worker.get('account', {})
+            accounts.append(('active', account))
+    for account in list(account_queue.queue):
+        accounts.append(('spare', account))
+    for captcha_tuple in list(account_captchas):
+        account = captcha_tuple[1]
+        accounts.append(('captcha', account))
+    for acc_fail in account_failures:
+        account = acc_fail['account']
+        accounts.append(('failed', account))
+
+    # Determine maximum username length.
+    userlen = 4
+    for status, acc in accounts:
+        userlen = max(userlen, len(acc.get('username', '')))
+
+    # Print table header.
+    row_tmpl = '{:7} | {:' + str(userlen) + '} | {:5} | {:>8} | {:10} | {:6}' \
+                                   ' | {:8} | {:5} | {:>10}'
+    rows.append(row_tmpl.format('Status', 'User', 'Level', 'XP',
+                                     'Encounters', 'Throws',
+                                     'Captures', 'Spins', 'Walked'))
+
+    # Pagination.
+    start_line, end_line, total_pages = calc_pagination(len(accounts), 6,
+                                                        current_page)
+
+    # Print account statistics.
+    current_line = 0
+    for status, account in accounts:
+        # Skip over items that don't belong on this page.
+        current_line += 1
+        if current_line < start_line:
+            continue
+        if current_line > end_line:
+            break
+
+        # Format walked km
+        km_walked_f = account.get('km_walked', 'none')
+        if km_walked_f != 'none':
+            km_walked_str = '{:.1f} km'.format(km_walked_f)
+        else:
+            km_walked_str = ""
+
+        rows.append(row_tmpl.format(
+            status,
+            account.get('username', ''),
+            account.get('level', ''),
+            account.get('experience', ''),
+            account.get('pokemons_encountered', ''),
+            account.get('pokeballs_thrown', ''),
+            account.get('pokemons_captured', ''),
+            account.get('poke_stop_visits', ''),
+            km_walked_str))
+
+    return total_pages
+
+# Helper function to calculate start and end line for paginated output
+def calc_pagination(total_rows, non_data_rows, current_page):
+    width, height = terminalsize.get_terminal_size()
+    # Title and table header is not usable space
+    usable_height = height - non_data_rows
+    # Prevent people running terminals only 6 lines high from getting a
+    # divide by zero.
+    if usable_height < 1:
+        usable_height = 1
+
+    total_pages = math.ceil(total_rows / float(usable_height))
+
+    # Prevent moving outside the valid range of pages.
+    if current_page[0] > total_pages:
+        current_page[0] = total_pages
+    if current_page[0] < 1:
+        current_page[0] = 1
+
+    # Calculate which lines to print (1-based).
+    start_line = usable_height * (current_page[0] - 1) + 1
+    end_line = start_line + usable_height - 1
+
+    return start_line, end_line, total_pages
 
 
 # The account recycler monitors failed accounts and places them back in the
@@ -343,8 +449,8 @@ def worker_status_db_thread(threads_status, name, db_updates_queue):
 
 
 # The main search loop that keeps an eye on the over all process.
-def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
-                           db_updates_queue, wh_queue):
+def search_overseer_thread(args, beehive_workers, new_location_queue,
+                           pause_bit, heartb, db_updates_queue, wh_queue):
 
     log.info('Search overseer starting...')
 
@@ -430,45 +536,54 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
 
     # Create specified number of search_worker_thread.
     log.info('Starting search worker threads...')
-    for i in range(0, args.workers):
-        log.debug('Starting search worker thread %d...', i)
+    worker_count = 0
+    beehive_size = len(beehive_workers)
 
-        if i == 0 or (args.beehive and i % args.workers_per_hive == 0):
-            search_items_queue = Queue()
-            # Create the appropriate type of scheduler to handle the search
-            # queue.
-            scheduler = schedulers.SchedulerFactory.get_scheduler(
-                args.scheduler, [search_items_queue], threadStatus, args)
+    for beehive_index in range(0, beehive_size):
+        if beehive_workers[beehive_index] < 1:
+            continue
+        search_items_queue = Queue()
+        # Create the appropriate type of scheduler to handle the search queue.
+        scheduler = schedulers.SchedulerFactory.get_scheduler(
+                                                        args.scheduler,
+                                                        [search_items_queue],
+                                                        threadStatus, args)
 
-            scheduler_array.append(scheduler)
-            search_items_queue_array.append(search_items_queue)
+        scheduler_array.append(scheduler)
+        search_items_queue_array.append(search_items_queue)
 
-        # Set proxy for each worker, using round robin.
-        proxy_display = 'No'
-        proxy_url = False    # Will be assigned inside a search thread.
+        hive_workers = beehive_workers[beehive_index]
+        while hive_workers > 0:
+            log.debug('Starting search worker thread %d...', worker_count)
 
-        workerId = 'Worker {:03}'.format(i)
-        threadStatus[workerId] = {
-            'type': 'Worker',
-            'message': 'Creating thread...',
-            'success': 0,
-            'fail': 0,
-            'noitems': 0,
-            'skip': 0,
-            'captcha': 0,
-            'username': '',
-            'proxy_display': proxy_display,
-            'proxy_url': proxy_url,
-        }
+            # Set proxy for each worker, using round robin.
+            proxy_display = 'No'
+            proxy_url = False    # Will be assigned inside a search thread.
 
-        t = Thread(target=search_worker_thread,
-                   name='search-worker-{}'.format(i),
-                   args=(args, account_queue, account_failures,
-                         account_captchas, search_items_queue, pause_bit,
-                         threadStatus[workerId], db_updates_queue,
-                         wh_queue, scheduler, key_scheduler))
-        t.daemon = True
-        t.start()
+            workerId = 'Worker {:03}'.format(worker_count)
+            threadStatus[workerId] = {
+                'type': 'Worker',
+                'message': 'Creating thread...',
+                'success': 0,
+                'fail': 0,
+                'noitems': 0,
+                'skip': 0,
+                'captcha': 0,
+                'username': '',
+                'proxy_display': proxy_display,
+                'proxy_url': proxy_url,
+            }
+
+            t = Thread(target=search_worker_thread,
+                       name='search-worker-{}'.format(worker_count),
+                       args=(args, account_queue, account_failures,
+                             account_captchas, search_items_queue, pause_bit,
+                             threadStatus[workerId], db_updates_queue,
+                             wh_queue, scheduler, key_scheduler))
+            t.daemon = True
+            t.start()
+            worker_count += 1
+            hive_workers -= 1
 
     if not args.no_version_check:
         log.info('Enabling new API force Watchdog.')
@@ -509,11 +624,15 @@ def search_overseer_thread(args, new_location_queue, pause_bit, heartb,
 
             locations = generate_hive_locations(
                 current_location, step_distance,
-                args.step_limit, len(scheduler_array))
+                args.step_limit, beehive_size)
 
-            for i in range(0, len(scheduler_array)):
-                scheduler_array[i].location_changed(locations[i],
-                                                    db_updates_queue)
+            scheduler_index = 0
+            for i in range(0, beehive_size):
+                if beehive_workers[i] > 0:
+                    scheduler_array[scheduler_index].location_changed(
+                                                        locations[i],
+                                                        db_updates_queue)
+                    scheduler_index += 1
 
         # If there are no search_items_queue either the loop has finished or
         # it's been cleared above.  Either way, time to fill it back up.
@@ -756,6 +875,7 @@ def search_worker_thread(args, account_queue, account_failures,
                 account['username'], scheduler.scan_location))
             status['message'] = 'Switching to account {}.'.format(
                 account['username'])
+            status['account'] = account
             log.info(status['message'])
 
             # New lease of life right here.
@@ -820,7 +940,7 @@ def search_worker_thread(args, account_queue, account_failures,
                     log.warning(status['message'])
                     account_failures.append({'account': account,
                                              'last_fail_time': now(),
-                                             'reason': 'failures'})
+                                             'reason': 'failed more than {} times'.format(args.max_failures)})
                     # Exit this loop to get a new account and have the API
                     # recreated.
                     break
@@ -969,6 +1089,9 @@ def search_worker_thread(args, account_queue, account_failures,
                     time.sleep(scheduler.delay(status['last_scan_date']))
                     continue
 
+                # Update player account stats.
+                status['account'].update(parse_player_stats(response_dict))
+                
                 # Got the response, check for captcha, parse it out, then send
                 # todo's to db/wh queues.
                 try:
@@ -1134,7 +1257,7 @@ def search_worker_thread(args, account_queue, account_failures,
             traceback.print_exc(file=sys.stdout)
             account_failures.append({'account': account,
                                      'last_fail_time': now(),
-                                     'reason': 'exception'})
+                                     'reason': repr(e)})
             time.sleep(args.scan_delay)
 
 
