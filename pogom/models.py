@@ -38,7 +38,7 @@ args = get_args()
 flaskDb = FlaskDB()
 cache = TTLCache(maxsize=100, ttl=60 * 5)
 
-db_schema_version = 15
+db_schema_version = 16
 
 CATCH_STATUS_SUCCESS = 1
 CATCH_STATUS_FAILED = 2
